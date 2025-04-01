@@ -9,7 +9,6 @@ export interface User {
   id: string;
   name: string;
   role: UserRole;
-  password?: string; // New field for password (only used by owner)
 }
 
 // Context interface
@@ -18,13 +17,12 @@ interface AuthContextType {
   setCurrentUser: (user: User | null) => void;
   isOwner: boolean;
   isAuthenticated: boolean;
-  login: (userName: string, password?: string) => boolean;
+  login: (userName: string) => boolean;
   logout: () => void;
-  staffMembers: User[];  
+  staffMembers: User[];  // Ensure staffMembers is included in the context type
   addStaffMember: (name: string, role: UserRole) => void;
   updateStaffMember: (id: string, name: string, role: UserRole) => void;
   deleteStaffMember: (id: string) => boolean;
-  updateOwnerPassword: (newPassword: string) => boolean;
 }
 
 // Create the context
@@ -32,7 +30,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Sample staff members
 const initialStaffMembers: User[] = [
-  { id: '1', name: 'Owner', role: 'owner', password: 'admin123' }, // Default password
+  { id: '1', name: 'Owner', role: 'owner' },
   { id: '2', name: 'Raj', role: 'staff' },
   { id: '3', name: 'Priya', role: 'staff' },
   { id: '4', name: 'Amit', role: 'staff' },
@@ -79,8 +77,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const newStaff: User = {
       id: Date.now().toString(),
       name,
-      role,
-      ...(role === 'owner' && { password: 'admin123' }) // Default password for owners
+      role
     };
     setStaffMembers([...staffMembers, newStaff]);
   };
@@ -88,7 +85,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateStaffMember = (id: string, name: string, role: UserRole) => {
     setStaffMembers(staffMembers.map(staff => {
       if (staff.id === id) {
-        // Preserve password if it exists
         return { ...staff, name, role };
       }
       return staff;
@@ -116,57 +112,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return true;
   };
 
-  const updateOwnerPassword = (newPassword: string): boolean => {
-    // Find the owner
-    const ownerIndex = staffMembers.findIndex(staff => staff.role === 'owner');
-    if (ownerIndex === -1) return false;
-
-    // Update the owner's password
-    const updatedStaffMembers = [...staffMembers];
-    updatedStaffMembers[ownerIndex] = {
-      ...updatedStaffMembers[ownerIndex],
-      password: newPassword
-    };
-
-    setStaffMembers(updatedStaffMembers);
-
-    // Update current user if logged in as owner
-    if (currentUser && currentUser.role === 'owner') {
-      setCurrentUser({
-        ...currentUser,
-        password: newPassword
-      });
-    }
-
-    return true;
-  };
-
-  const login = (userName: string, password?: string): boolean => {
-    // Find the user in staff members
+  const login = (userName: string) => {
+    // Find the user in staff members and auto-determine their role
     const user = staffMembers.find(
       (staff) => staff.name.toLowerCase() === userName.toLowerCase()
     );
     
-    if (!user) return false;
-
-    // For debugging
-    console.log('User found:', user);
-    console.log('Checking login:', { 
-      isOwner: user.role === 'owner', 
-      providedPassword: password,
-      storedPassword: user.password
-    });
-
-    // If the user is an owner, verify password
-    if (user.role === 'owner') {
-      if (!password || user.password !== password) {
-        console.log('Password validation failed');
-        return false;
-      }
+    if (user) {
+      setCurrentUser(user);
+      return true;
     }
-    
-    setCurrentUser(user);
-    return true;
+    return false;
   };
 
   const logout = () => {
@@ -180,11 +136,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isAuthenticated: currentUser !== null,
     login,
     logout,
-    staffMembers,
+    staffMembers,  // Ensure staffMembers is included in the context value
     addStaffMember,
     updateStaffMember,
-    deleteStaffMember,
-    updateOwnerPassword
+    deleteStaffMember
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
