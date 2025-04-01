@@ -4,7 +4,7 @@ import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAttendance } from '@/contexts/AttendanceContext';
-import { useAuth, staffMembers } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { LogIn, LogOut, Clock } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 
 const AttendancePage = () => {
   const { entries, checkIn, checkOut, getEntriesByDate } = useAttendance();
-  const { currentUser } = useAuth();
+  const { currentUser, staffMembers } = useAuth();
   const { toast } = useToast();
   const [date, setDate] = useState<string>(
     new Date().toISOString().split('T')[0]

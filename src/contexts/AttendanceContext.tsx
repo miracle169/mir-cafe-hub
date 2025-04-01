@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { staffMembers } from './AuthContext';
+import { useAuth } from './AuthContext';
 
 // Attendance entry interface
 export interface AttendanceEntry {
@@ -50,6 +50,7 @@ const getTodayDate = () => {
 
 // Provider component
 export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { staffMembers } = useAuth();
   const [entries, setEntries] = useState<AttendanceEntry[]>([]);
   const [cashRegisterEntries, setCashRegisterEntries] = useState<CashRegisterEntry[]>([]);
 
