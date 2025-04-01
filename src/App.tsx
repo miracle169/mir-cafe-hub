@@ -29,6 +29,7 @@ import AttendancePage from "./pages/Attendance/AttendancePage";
 import CashDrawerPage from "./pages/CashDrawer/CashDrawerPage";
 import DashboardPage from "./pages/Dashboard/DashboardPage";
 import UploadPage from "./pages/Upload/UploadPage";
+import StaffManagementPage from "./pages/StaffManagement/StaffManagementPage";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,7 @@ const App = () => (
                         <Route path="/cash-drawer" element={<CashDrawerPage />} />
                         <Route path="/dashboard" element={<DashboardPage />} />
                         <Route path="/upload" element={<UploadPage />} />
+                        <Route path="/staff-management" element={<StaffManagementPage />} />
                         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                         <Route path="*" element={<NotFound />} />
                       </Routes>

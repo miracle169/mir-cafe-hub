@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, Package, BarChart4, Clock, Upload } from 'lucide-react';
+import { Home, ShoppingCart, Package, BarChart4, Clock, Upload, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -64,6 +64,16 @@ const BottomNav = () => {
         >
           <Upload className="bottom-nav-icon" />
           <span className="text-xs">Upload</span>
+        </Link>
+      )}
+
+      {isOwner && (
+        <Link 
+          to="/staff-management" 
+          className={cn("bottom-nav-item", isActive('/staff-management') && "text-mir-red")}
+        >
+          <Users className="bottom-nav-icon" />
+          <span className="text-xs">Staff</span>
         </Link>
       )}
     </nav>

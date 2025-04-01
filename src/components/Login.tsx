@@ -3,15 +3,14 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAuth, staffMembers, UserRole } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Coffee } from 'lucide-react';
 
 const Login = () => {
-  const { login } = useAuth();
+  const { login, staffMembers } = useAuth();
   const { toast } = useToast();
   const [selectedUser, setSelectedUser] = useState<string>('');
-  const [selectedRole, setSelectedRole] = useState<UserRole>('staff');
 
   const handleLogin = () => {
     if (!selectedUser) {
@@ -23,7 +22,7 @@ const Login = () => {
       return;
     }
 
-    const success = login(selectedUser, selectedRole);
+    const success = login(selectedUser);
     
     if (success) {
       toast({
@@ -33,7 +32,7 @@ const Login = () => {
     } else {
       toast({
         title: 'Error',
-        description: 'Invalid user or role',
+        description: 'Invalid user',
         variant: 'destructive',
       });
     }
@@ -59,22 +58,9 @@ const Login = () => {
               <SelectContent>
                 {staffMembers.map((staff) => (
                   <SelectItem key={staff.id} value={staff.name}>
-                    {staff.name}
+                    {staff.name} {staff.role === 'owner' ? '(Owner)' : ''}
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-mir-black">Select Role</label>
-            <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as UserRole)}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="staff">Staff</SelectItem>
-                <SelectItem value="owner">Owner</SelectItem>
               </SelectContent>
             </Select>
           </div>
