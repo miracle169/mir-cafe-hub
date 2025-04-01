@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,10 +8,18 @@ import { useMenu } from '@/contexts/MenuContext';
 import { useAttendance } from '@/contexts/AttendanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { BarChart3, TrendingUp, TrendingDown, Package, Clock, Users, DollarSign, ShoppingCart } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Package, Clock, Users, CreditCard, ShoppingCart } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+
+interface CashRegisterEntry {
+  id: string;
+  staffId: string;
+  date: string;
+  moneyReceived: number;
+  totalAmount: number;
+}
 
 const DashboardPage = () => {
   const { orders } = useOrder();
@@ -32,7 +39,6 @@ const DashboardPage = () => {
     other: '2000',
   });
 
-  // Set initial date range
   useEffect(() => {
     const today = new Date();
     const endFormatted = today.toISOString().split('T')[0];
@@ -56,7 +62,6 @@ const DashboardPage = () => {
     setEndDate(endFormatted);
   }, [salesDateRange]);
 
-  // Filter orders by date range
   const getFilteredOrders = () => {
     if (!startDate || !endDate) return [];
     
@@ -64,17 +69,15 @@ const DashboardPage = () => {
       const orderDate = new Date(order.createdAt);
       const start = new Date(startDate);
       const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999); // Include the entire end day
+      end.setHours(23, 59, 59, 999);
       
       return orderDate >= start && orderDate <= end && order.status === 'completed';
     });
   };
 
-  // Get order data for sales chart
   const getSalesChartData = () => {
     const filteredOrders = getFilteredOrders();
     
-    // Group by date
     const salesByDate = filteredOrders.reduce((acc: any, order) => {
       const date = new Date(order.createdAt).toISOString().split('T')[0];
       
@@ -92,17 +95,14 @@ const DashboardPage = () => {
       return acc;
     }, {});
     
-    // Convert to array and sort by date
     return Object.values(salesByDate).sort((a: any, b: any) => 
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
   };
 
-  // Get top selling items data
   const getTopSellingItems = () => {
     const filteredOrders = getFilteredOrders();
     
-    // Extract all items from orders
     const allItems = filteredOrders.flatMap(order => 
       order.items.map(item => ({
         id: item.id,
@@ -112,7 +112,6 @@ const DashboardPage = () => {
       }))
     );
     
-    // Group by item id
     const itemSales = allItems.reduce((acc: any, item) => {
       if (!acc[item.id]) {
         acc[item.id] = {
@@ -129,13 +128,11 @@ const DashboardPage = () => {
       return acc;
     }, {});
     
-    // Convert to array, sort by quantity, and take top 5
     return Object.values(itemSales)
       .sort((a: any, b: any) => b.quantity - a.quantity)
       .slice(0, 5);
   };
 
-  // Get payment method distribution data
   const getPaymentMethodData = () => {
     const filteredOrders = getFilteredOrders();
     
@@ -158,14 +155,12 @@ const DashboardPage = () => {
     return Object.values(methodCounts);
   };
 
-  // Get summary metrics
   const getTotalSales = () => {
     const filteredOrders = getFilteredOrders();
     return filteredOrders.reduce((total, order) => total + order.totalAmount, 0);
   };
 
   const getTotalExpenses = () => {
-    // Filter purchase logs by date range
     const filteredLogs = purchaseLogs.filter(log => {
       const logDate = new Date(log.date);
       const start = new Date(startDate);
@@ -175,7 +170,6 @@ const DashboardPage = () => {
       return logDate >= start && logDate <= end;
     });
     
-    // Sum up the expenses
     return filteredLogs.reduce((total, log) => total + log.totalAmount, 0);
   };
 
@@ -190,15 +184,13 @@ const DashboardPage = () => {
     return totalSales - totalExpenses - totalFixedCosts;
   };
 
-  // Calculate staff balance summary
   const getStaffBalance = () => {
-    // Get the most recent cash register entry for each staff
     const staffBalances = staffMembers.map(staff => {
       const entries = cashRegisterEntries
         .filter(entry => entry.staffId === staff.id)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       
-      const latestEntry = entries[0];
+      const latestEntry = entries[0] as CashRegisterEntry | undefined;
       
       return {
         id: staff.id,
@@ -212,10 +204,8 @@ const DashboardPage = () => {
     return staffBalances.filter(staff => staff.balance !== 0);
   };
 
-  // Prepare chart colors
   const COLORS = ['#ea384c', '#fcb900', '#333333', '#999999'];
 
-  // Check if user is owner
   if (!isOwner) {
     return (
       <Layout title="Dashboard" showBackButton>
@@ -243,9 +233,7 @@ const DashboardPage = () => {
             <TabsTrigger value="finances">Finances</TabsTrigger>
           </TabsList>
           
-          {/* Sales Tab */}
           <TabsContent value="sales" className="space-y-4">
-            {/* Date Range Selector */}
             <div className="bg-white p-3 rounded-lg shadow-sm">
               <div className="flex space-x-2 mb-3">
                 <Button 
@@ -309,7 +297,6 @@ const DashboardPage = () => {
               </div>
             </div>
             
-            {/* Summary Cards */}
             <div className="grid grid-cols-2 gap-3">
               <Card>
                 <CardContent className="p-3">
@@ -336,7 +323,6 @@ const DashboardPage = () => {
               </Card>
             </div>
             
-            {/* Sales Chart */}
             <Card>
               <CardHeader className="p-3 pb-0">
                 <CardTitle className="text-lg">Sales Trend</CardTitle>
@@ -369,7 +355,6 @@ const DashboardPage = () => {
               </CardContent>
             </Card>
             
-            {/* Top Selling Items & Payment Methods */}
             <div className="grid grid-cols-1 gap-4">
               <Card>
                 <CardHeader className="p-3 pb-0">
@@ -434,9 +419,7 @@ const DashboardPage = () => {
             </div>
           </TabsContent>
           
-          {/* Inventory Tab */}
           <TabsContent value="inventory" className="space-y-4">
-            {/* Inventory Summary */}
             <div className="grid grid-cols-2 gap-3">
               <Card>
                 <CardContent className="p-3">
@@ -463,7 +446,6 @@ const DashboardPage = () => {
               </Card>
             </div>
             
-            {/* Low Stock Items */}
             <Card>
               <CardHeader className="p-3 pb-0">
                 <CardTitle className="text-lg">Low Stock Alert</CardTitle>
@@ -494,7 +476,6 @@ const DashboardPage = () => {
               </CardContent>
             </Card>
             
-            {/* Recent Purchases */}
             <Card>
               <CardHeader className="p-3 pb-0">
                 <CardTitle className="text-lg">Recent Purchases</CardTitle>
@@ -531,9 +512,7 @@ const DashboardPage = () => {
             </Card>
           </TabsContent>
           
-          {/* Staff Tab */}
           <TabsContent value="staff" className="space-y-4">
-            {/* Staff Summary */}
             <div className="grid grid-cols-2 gap-3">
               <Card>
                 <CardContent className="p-3">
@@ -560,7 +539,6 @@ const DashboardPage = () => {
               </Card>
             </div>
             
-            {/* Staff Balance Summary */}
             <Card>
               <CardHeader className="p-3 pb-0">
                 <CardTitle className="text-lg">Staff Balance Summary</CardTitle>
@@ -595,7 +573,6 @@ const DashboardPage = () => {
               </CardContent>
             </Card>
             
-            {/* Staff Attendance */}
             <Card>
               <CardHeader className="p-3 pb-0">
                 <CardTitle className="text-lg">Today's Attendance</CardTitle>
@@ -635,9 +612,7 @@ const DashboardPage = () => {
             </Card>
           </TabsContent>
           
-          {/* Finances Tab */}
           <TabsContent value="finances" className="space-y-4">
-            {/* Financial Summary */}
             <div className="grid grid-cols-3 gap-3">
               <Card>
                 <CardContent className="p-3">
@@ -672,13 +647,12 @@ const DashboardPage = () => {
                         ₹{getTotalProfit().toFixed(2)}
                       </p>
                     </div>
-                    <DollarSign className={`h-6 w-6 ${getTotalProfit() < 0 ? 'text-red-500' : 'text-green-600'}`} />
+                    <CreditCard className={`h-6 w-6 ${getTotalProfit() < 0 ? 'text-red-500' : 'text-green-600'}`} />
                   </div>
                 </CardContent>
               </Card>
             </div>
             
-            {/* Fixed Costs */}
             <Card>
               <CardHeader className="p-3 pb-0">
                 <CardTitle className="text-lg">Fixed Costs</CardTitle>
@@ -742,7 +716,6 @@ const DashboardPage = () => {
               </CardContent>
             </Card>
             
-            {/* Profit & Loss Summary */}
             <Card>
               <CardHeader className="p-3 pb-0">
                 <CardTitle className="text-lg">Profit & Loss Statement</CardTitle>

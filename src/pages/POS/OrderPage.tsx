@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
@@ -9,7 +8,7 @@ import { useOrder, OrderType, PaymentMethod } from '@/contexts/OrderContext';
 import { useCustomer } from '@/contexts/CustomerContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
-import { Printer, QrCode, Dollar, Clock, Check } from 'lucide-react';
+import { Printer, QrCode, CreditCard, Clock, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
@@ -36,7 +35,6 @@ const OrderPage = () => {
   const [orderCompleted, setOrderCompleted] = useState(false);
   const [currentOrder, setCurrentOrder] = useState<any>(null);
 
-  // Handle KOT printing
   const handlePrintKot = () => {
     if (!currentOrder) {
       toast({
@@ -47,17 +45,14 @@ const OrderPage = () => {
       return;
     }
 
-    // Simulate printing KOT
     toast({
       title: "KOT Printed",
       description: `Order #${currentOrder.id.slice(0, 5)} sent to kitchen`,
     });
 
-    // Mark KOT as printed
     setKotPrinted(currentOrder.id);
   };
 
-  // Handle bill printing
   const handlePrintBill = () => {
     if (!currentOrder) {
       toast({
@@ -68,17 +63,14 @@ const OrderPage = () => {
       return;
     }
 
-    // Simulate printing bill
     toast({
       title: "Bill Printed",
       description: `Bill for Order #${currentOrder.id.slice(0, 5)} printed`,
     });
 
-    // Mark bill as printed
     setBillPrinted(currentOrder.id);
   };
 
-  // Create the order when the component mounts
   useEffect(() => {
     if (!currentUser || items.length === 0) {
       navigate('/pos');
@@ -95,20 +87,15 @@ const OrderPage = () => {
     );
 
     setCurrentOrder(order);
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When payment is complete
   const handleCompletePayment = () => {
     if (!currentOrder) return;
 
-    // Calculate payment amounts
     const cashPayment = parseFloat(cashAmount) || 0;
     const upiPayment = parseFloat(upiAmount) || 0;
     const total = cashPayment + upiPayment;
 
-    // Validate payment amount
     if (total < totalAmount) {
       toast({
         title: "Payment Error",
@@ -118,7 +105,6 @@ const OrderPage = () => {
       return;
     }
 
-    // Complete the order
     const paymentDetails = {
       method: paymentMethod,
       cash: paymentMethod === 'cash' || paymentMethod === 'split' ? cashPayment : 0,
@@ -127,23 +113,19 @@ const OrderPage = () => {
     };
 
     try {
-      // Add loyalty points (10% of the bill rounded down)
       if (currentCustomer) {
         const loyaltyPoints = Math.floor(totalAmount / 10);
         addLoyaltyPoints(currentCustomer.id, loyaltyPoints);
       }
 
-      // Close dialog
       setPaymentDialogOpen(false);
       setOrderCompleted(true);
 
-      // Show completion toast
       toast({
         title: "Order Completed",
         description: "Payment processed successfully",
       });
 
-      // Clear the cart after a short delay
       setTimeout(() => {
         clearCart();
       }, 1000);
@@ -156,7 +138,6 @@ const OrderPage = () => {
     }
   };
 
-  // Show UPI QR code
   const handleShowUpiQr = () => {
     setShowUpiQr(true);
     toast({
@@ -234,7 +215,7 @@ const OrderPage = () => {
               className="w-full flex items-center justify-center bg-mir-red text-white hover:bg-mir-red/90"
               onClick={() => setPaymentDialogOpen(true)}
             >
-              <Dollar className="mr-2 h-4 w-4" />
+              <CreditCard className="mr-2 h-4 w-4" />
               Process Payment
             </Button>
           </div>
@@ -266,7 +247,6 @@ const OrderPage = () => {
         )}
       </div>
 
-      {/* Payment Dialog */}
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
         <DialogContent>
           <DialogTitle>Process Payment</DialogTitle>

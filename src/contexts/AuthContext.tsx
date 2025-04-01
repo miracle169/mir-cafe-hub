@@ -17,8 +17,9 @@ interface AuthContextType {
   setCurrentUser: (user: User | null) => void;
   isOwner: boolean;
   isAuthenticated: boolean;
-  login: (userName: string, role: UserRole) => void;
+  login: (userName: string, role: UserRole) => boolean;
   logout: () => void;
+  staffMembers: User[];
 }
 
 // Create the context
