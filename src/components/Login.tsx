@@ -60,7 +60,7 @@ const Login = () => {
     } else {
       toast({
         title: 'Error',
-        description: isOwner ? 'Invalid user or password' : 'Invalid user',
+        description: isOwner ? 'Invalid password' : 'Invalid user',
         variant: 'destructive',
       });
     }

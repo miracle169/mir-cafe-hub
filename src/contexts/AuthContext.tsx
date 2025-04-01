@@ -79,7 +79,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const newStaff: User = {
       id: Date.now().toString(),
       name,
-      role
+      role,
+      ...(role === 'owner' && { password: 'admin123' }) // Default password for owners
     };
     setStaffMembers([...staffMembers, newStaff]);
   };
@@ -140,8 +141,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return true;
   };
 
-  const login = (userName: string, password?: string) => {
-    // Find the user in staff members and auto-determine their role
+  const login = (userName: string, password?: string): boolean => {
+    // Find the user in staff members
     const user = staffMembers.find(
       (staff) => staff.name.toLowerCase() === userName.toLowerCase()
     );
