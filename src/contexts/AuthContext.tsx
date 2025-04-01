@@ -149,9 +149,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     if (!user) return false;
 
+    // For debugging
+    console.log('User found:', user);
+    console.log('Checking login:', { 
+      isOwner: user.role === 'owner', 
+      providedPassword: password,
+      storedPassword: user.password
+    });
+
     // If the user is an owner, verify password
     if (user.role === 'owner') {
       if (!password || user.password !== password) {
+        console.log('Password validation failed');
         return false;
       }
     }

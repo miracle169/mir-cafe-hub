@@ -50,6 +50,13 @@ const Login = () => {
       return;
     }
 
+    // For debugging
+    console.log('Attempting login with:', { 
+      user: selectedUser, 
+      isOwner, 
+      password: isOwner ? password : 'none required'
+    });
+    
     const success = login(selectedUser, isOwner ? password : undefined);
     
     if (success) {
