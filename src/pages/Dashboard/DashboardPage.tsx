@@ -5,21 +5,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useOrder } from '@/contexts/OrderContext';
 import { useInventory } from '@/contexts/InventoryContext';
 import { useMenu } from '@/contexts/MenuContext';
-import { useAttendance } from '@/contexts/AttendanceContext';
+import { useAttendance, CashRegisterEntry } from '@/contexts/AttendanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { BarChart3, TrendingUp, TrendingDown, Package, Clock, Users, CreditCard, ShoppingCart } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-
-interface CashRegisterEntry {
-  id: string;
-  staffId: string;
-  date: string;
-  moneyReceived: number;
-  totalAmount: number;
-}
 
 const DashboardPage = () => {
   const { orders } = useOrder();
@@ -190,13 +182,13 @@ const DashboardPage = () => {
         .filter(entry => entry.staffId === staff.id)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       
-      const latestEntry = entries[0] as CashRegisterEntry | undefined;
+      const latestEntry = entries[0];
       
       return {
         id: staff.id,
         name: staff.name,
         balance: latestEntry ? 
-          (latestEntry.moneyReceived || 0) - (latestEntry.totalAmount || 0) : 0,
+          (latestEntry.openingAmount - (latestEntry.closingAmount || 0)) : 0,
         date: latestEntry ? latestEntry.date : null,
       };
     });

@@ -19,7 +19,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (userName: string, role: UserRole) => boolean;
   logout: () => void;
-  staffMembers: User[];
+  staffMembers: User[];  // Ensure staffMembers is included in the context type
 }
 
 // Create the context
@@ -78,7 +78,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isAuthenticated: currentUser !== null,
     login,
     logout,
-    staffMembers
+    staffMembers  // Ensure staffMembers is included in the context value
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
