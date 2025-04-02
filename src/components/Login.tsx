@@ -27,7 +27,7 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      // Check if we have a Supabase connection
+      // Check if we have a Supabase connection - simple test query
       const { data } = await supabase.from('staff').select('*').limit(1);
       console.log('Supabase connection test:', data);
       

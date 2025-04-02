@@ -102,7 +102,7 @@ async function sendWhatsAppMessage(data: WhatsAppMessage): Promise<boolean> {
     const url = new URL("https://api.callmebot.com/whatsapp.php");
     url.searchParams.append("phone", data.phone);
     url.searchParams.append("text", encodeURIComponent(data.message));
-    url.searchParams.append("apikey", "YOUR_CALLMEBOT_API_KEY"); // Replace with actual API key or environment variable
+    url.searchParams.append("apikey", "123456"); // You'll need to replace this with your actual API key
     
     const response = await fetch(url.toString());
     

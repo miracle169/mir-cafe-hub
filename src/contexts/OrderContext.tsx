@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { CartItem } from './CartContext';
 import { Customer } from './CustomerContext';
+import { supabase } from '@/integrations/supabase/client';
 
 // Order status enum
 export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
