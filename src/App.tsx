@@ -35,18 +35,18 @@ import StaffManagementPage from "./pages/StaffManagement/StaffManagementPage";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <MenuProvider>
-        <InventoryProvider>
-          <CustomerProvider>
-            <CartProvider>
-              <OrderProvider>
-                <AttendanceProvider>
-                  <TooltipProvider>
-                    <Toaster />
-                    <Sonner />
-                    <BrowserRouter>
+  <BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <MenuProvider>
+          <InventoryProvider>
+            <CustomerProvider>
+              <CartProvider>
+                <OrderProvider>
+                  <AttendanceProvider>
+                    <TooltipProvider>
+                      <Toaster />
+                      <Sonner />
                       <Routes>
                         <Route path="/" element={<HomePage />} />
                         <Route path="/pos" element={<POSPage />} />
@@ -66,16 +66,16 @@ const App = () => (
                         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                         <Route path="*" element={<NotFound />} />
                       </Routes>
-                    </BrowserRouter>
-                  </TooltipProvider>
-                </AttendanceProvider>
-              </OrderProvider>
-            </CartProvider>
-          </CustomerProvider>
-        </InventoryProvider>
-      </MenuProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+                    </TooltipProvider>
+                  </AttendanceProvider>
+                </OrderProvider>
+              </CartProvider>
+            </CustomerProvider>
+          </InventoryProvider>
+        </MenuProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </BrowserRouter>
 );
 
 export default App;
