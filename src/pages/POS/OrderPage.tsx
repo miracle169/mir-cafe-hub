@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
@@ -51,6 +52,10 @@ const OrderPage = () => {
     });
 
     setKotPrinted(currentOrder.id);
+    
+    // After printing KOT, redirect to POS page and clear cart
+    clearCart();
+    navigate('/pos');
   };
 
   const handlePrintBill = () => {
@@ -126,9 +131,13 @@ const OrderPage = () => {
         description: "Payment processed successfully",
       });
 
+      // Clear cart immediately after payment is processed
+      clearCart();
+      
+      // Redirect to POS page after a short delay
       setTimeout(() => {
-        clearCart();
-      }, 1000);
+        navigate('/pos');
+      }, 2000);
     } catch (error) {
       toast({
         title: "Error",
