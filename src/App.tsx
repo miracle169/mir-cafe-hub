@@ -20,6 +20,7 @@ import HomePage from "./pages/HomePage";
 import POSPage from "./pages/POS/POSPage";
 import CartPage from "./pages/POS/CartPage";
 import OrderPage from "./pages/POS/OrderPage";
+import ViewOrderPage from "./pages/POS/ViewOrderPage";
 import PurchasesPage from "./pages/Purchases/PurchasesPage";
 import AddPurchasePage from "./pages/Purchases/AddPurchasePage";
 import InventoryPage from "./pages/Inventory/InventoryPage";
@@ -51,6 +52,7 @@ const App = () => (
                         <Route path="/pos" element={<POSPage />} />
                         <Route path="/pos/cart" element={<CartPage />} />
                         <Route path="/pos/order" element={<OrderPage />} />
+                        <Route path="/pos/view-order/:id" element={<ViewOrderPage />} />
                         <Route path="/purchases" element={<PurchasesPage />} />
                         <Route path="/purchases/add" element={<AddPurchasePage />} />
                         <Route path="/inventory" element={<InventoryPage />} />
