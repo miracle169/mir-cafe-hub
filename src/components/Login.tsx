@@ -6,13 +6,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Coffee } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const Login = () => {
   const { login, staffMembers } = useAuth();
   const { toast } = useToast();
   const [selectedUser, setSelectedUser] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!selectedUser) {
       toast({
         title: 'Error',
@@ -22,19 +24,36 @@ const Login = () => {
       return;
     }
 
-    const success = login(selectedUser);
-    
-    if (success) {
+    setIsLoading(true);
+
+    try {
+      // Check if we have a Supabase connection
+      const { data } = await supabase.from('staff').select('*').limit(1);
+      console.log('Supabase connection test:', data);
+      
+      const success = login(selectedUser);
+      
+      if (success) {
+        toast({
+          title: 'Success',
+          description: `Logged in as ${selectedUser}`,
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Invalid user',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Login error:', error);
       toast({
-        title: 'Success',
-        description: `Logged in as ${selectedUser}`,
-      });
-    } else {
-      toast({
-        title: 'Error',
-        description: 'Invalid user',
+        title: 'Connection Error',
+        description: 'Failed to connect to the database. Please try again.',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -69,8 +88,9 @@ const Login = () => {
           <Button 
             className="w-full bg-mir-red hover:bg-mir-red/90 text-white" 
             onClick={handleLogin}
+            disabled={isLoading}
           >
-            Login
+            {isLoading ? 'Connecting...' : 'Login'}
           </Button>
         </CardFooter>
       </Card>

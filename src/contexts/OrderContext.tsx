@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { CartItem } from './CartContext';
 import { Customer } from './CustomerContext';
@@ -52,7 +51,15 @@ interface OrderContextType {
     staffName?: string
   ) => Order;
   updateOrderStatus: (id: string, status: OrderStatus) => void;
-  completeOrder: (id: string, paymentDetails: PaymentDetails) => void;
+  completeOrder: (
+    orderId: string, 
+    paymentDetails: {
+      method: PaymentMethod;
+      cash?: number;
+      upi?: number;
+      total: number;
+    }
+  ) => boolean;
   cancelOrder: (id: string) => void;
   getOrderById: (id: string) => Order | undefined;
   getCurrentOrders: () => Order[];
@@ -129,11 +136,19 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   // Complete an order with payment
-  const completeOrder = (id: string, paymentDetails: PaymentDetails) => {
+  const completeOrder = (
+    orderId: string, 
+    paymentDetails: {
+      method: PaymentMethod;
+      cash?: number;
+      upi?: number;
+      total: number;
+    }
+  ) => {
     const now = new Date().toISOString();
     setOrders((prevOrders) =>
       prevOrders.map((order) =>
-        order.id === id
+        order.id === orderId
           ? {
               ...order,
               status: 'completed',
@@ -144,6 +159,29 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           : order
       )
     );
+
+    // Find the completed order
+    const completedOrder = orders.find(order => order.id === orderId);
+    
+    // Send WhatsApp notification for order completion
+    if (completedOrder && completedOrder.customer?.phone) {
+      try {
+        // Call the Supabase edge function
+        supabase.functions.invoke('send-whatsapp', {
+          body: { order: completedOrder }
+        }).then(response => {
+          if (response.error) {
+            console.error('Error sending WhatsApp notification:', response.error);
+          } else {
+            console.log('WhatsApp notification sent successfully');
+          }
+        });
+      } catch (error) {
+        console.error('Failed to send WhatsApp notification:', error);
+      }
+    }
+
+    return true;
   };
 
   // Cancel an order
