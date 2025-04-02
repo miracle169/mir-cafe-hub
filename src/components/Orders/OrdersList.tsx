@@ -42,6 +42,7 @@ const OrdersList: React.FC = () => {
   
   // Get orders based on view mode
   const pendingOrders = getCurrentOrders().filter(order => order.kotPrinted);
+  // Fetch all today's orders including completed ones (no filtering by status)
   const todayOrders = getDailyOrders(new Date().toISOString().split('T')[0]);
   
   const orders = viewMode === 'pending' ? pendingOrders : todayOrders;
