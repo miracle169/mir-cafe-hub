@@ -102,7 +102,10 @@ async function sendWhatsAppMessage(data: WhatsAppMessage): Promise<boolean> {
     const url = new URL("https://api.callmebot.com/whatsapp.php");
     url.searchParams.append("phone", data.phone);
     url.searchParams.append("text", encodeURIComponent(data.message));
-    url.searchParams.append("apikey", "123456"); // You'll need to replace this with your actual API key
+    
+    // Get API key from environment variable or use a default for testing
+    const apiKey = Deno.env.get("CALLMEBOT_API_KEY") || "123456";
+    url.searchParams.append("apikey", apiKey);
     
     const response = await fetch(url.toString());
     

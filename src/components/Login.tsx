@@ -28,7 +28,12 @@ const Login = () => {
 
     try {
       // Check if we have a Supabase connection - simple test query
-      const { data } = await supabase.from('staff').select('*').limit(1);
+      const { data, error } = await supabase.from('staff').select('*').limit(1);
+      
+      if (error) {
+        throw error;
+      }
+      
       console.log('Supabase connection test:', data);
       
       const success = login(selectedUser);
