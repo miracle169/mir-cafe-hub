@@ -14,11 +14,20 @@ export interface AuthUser {
   role: UserRole;
 }
 
+// Staff member interface
+export interface StaffMember {
+  id: string;
+  name: string;
+  role: UserRole;
+}
+
 // Auth context type
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   currentUser: AuthUser | null;
+  staffMembers: StaffMember[];
+  isOwner: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   hasPermission: (requiredRole: UserRole) => boolean;
@@ -45,13 +54,41 @@ const sampleUsers = [
   },
 ];
 
+// Default staff members for demo purposes
+const defaultStaffMembers: StaffMember[] = [
+  {
+    id: '1',
+    name: 'Café Owner',
+    role: 'owner',
+  },
+  {
+    id: '2',
+    name: 'Café Staff',
+    role: 'staff',
+  },
+  {
+    id: '3',
+    name: 'John Barista',
+    role: 'staff',
+  },
+  {
+    id: '4',
+    name: 'Mary Server',
+    role: 'staff',
+  }
+];
+
 // Provider component
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>(defaultStaffMembers);
   const [session, setSession] = useState<Session | null>(null);
   const { toast } = useToast();
+
+  // Computed property for owner status
+  const isOwner = currentUser?.role === 'owner';
 
   // Initialize: check if user is already logged in
   useEffect(() => {
@@ -82,6 +119,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       setIsLoading(false);
     });
+
+    // Fetch staff members
+    fetchStaffMembers();
 
     return () => {
       subscription.unsubscribe();
@@ -123,6 +163,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Fetch all staff members
+  const fetchStaffMembers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('staff')
+        .select('id, name, role')
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching staff members:', error);
+        // Use default staff members for demo
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setStaffMembers(data as StaffMember[]);
+      }
+    } catch (error) {
+      console.error('Error in fetchStaffMembers:', error);
+    }
+  };
+  
   // Login function
   const login = async (email: string, password: string) => {
     try {
@@ -228,6 +290,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isAuthenticated,
     isLoading,
     currentUser,
+    staffMembers,
+    isOwner,
     login,
     logout,
     hasPermission,

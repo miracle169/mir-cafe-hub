@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 
 const AttendancePage = () => {
   const { entries, checkIn, checkOut, getEntriesByDate } = useAttendance();
-  const { currentUser, staffMembers } = useAuth();
+  const { currentUser, staffMembers = [] } = useAuth(); // Provide a default empty array
   const { toast } = useToast();
   const [date, setDate] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -83,6 +83,32 @@ const AttendancePage = () => {
   // Get current date
   const today = new Date().toISOString().split('T')[0];
   const isToday = date === today;
+
+  // If no staff members are available, show a message
+  if (!staffMembers || staffMembers.length === 0) {
+    return (
+      <Layout title="Attendance" showBackButton>
+        <div className="mir-container p-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-center py-8">
+                <h3 className="font-medium text-lg mb-2">No Staff Members Available</h3>
+                <p className="text-mir-gray-dark mb-4">
+                  There are no staff members configured in the system.
+                </p>
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.history.back()}
+                >
+                  Go Back
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout title="Attendance" showBackButton>
