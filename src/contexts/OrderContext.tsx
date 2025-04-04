@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { CartItem } from './CartContext';
 import { Customer } from './CustomerContext';
@@ -36,6 +37,7 @@ export interface Order {
   staffId: string;
   staffName: string;
   totalAmount: number;
+  discountAmount?: number; // Add discount amount to Order interface
   paymentDetails?: PaymentDetails;
   kotPrinted: boolean;
   billPrinted: boolean;
@@ -295,7 +297,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         staffId: staffId || currentUser.id,
         staffName: staffName || currentUser.name,
         totalAmount,
-        discount: finalDiscount,
+        discountAmount: finalDiscount, // Use discountAmount instead of discount
         kotPrinted: false,
         billPrinted: false,
       };

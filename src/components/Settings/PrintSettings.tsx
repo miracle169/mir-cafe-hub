@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { FileUpload, QrCode, Save, Printer } from 'lucide-react';
+import { Upload, QrCode, Save, Printer } from 'lucide-react'; // Changed FileUpload to Upload
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -474,7 +474,7 @@ const PrintSettings = ({ isOwner = false }) => {
                 onClick={handleUploadFiles} 
                 disabled={isUploading || (!logoFile && !qrCodeFile)}
               >
-                <FileUpload className="mr-2 h-4 w-4" />
+                <Upload className="mr-2 h-4 w-4" /> {/* Changed FileUpload to Upload */}
                 {isUploading ? "Uploading..." : "Upload Files"}
               </Button>
             )}

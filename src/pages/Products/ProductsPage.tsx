@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useMenu } from '@/contexts/MenuContext';
@@ -23,19 +22,16 @@ const ProductsPage = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [selectedTab, setSelectedTab] = useState<'products' | 'categories'>('products');
   
-  // Filter products based on search query
   const filteredProducts = menuItems ? menuItems.filter(
     (product) => 
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (product.description || '').toLowerCase().includes(searchQuery.toLowerCase())
   ) : [];
 
-  // Filter categories based on search query
   const filteredCategories = categories ? categories.filter(
     (category) => category.name.toLowerCase().includes(searchQuery.toLowerCase())
   ) : [];
 
-  // Handle product deletion
   const handleDeleteProduct = (id) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       deleteItem(id);
@@ -47,7 +43,6 @@ const ProductsPage = () => {
     }
   };
 
-  // Handle category deletion
   const handleDeleteCategory = (id) => {
     if (menuItems && menuItems.some(item => item.category === id)) {
       toast({
@@ -60,7 +55,6 @@ const ProductsPage = () => {
     }
     
     if (window.confirm('Are you sure you want to delete this category?')) {
-      // Use the context function
       deleteCategory(id);
       toast({
         title: 'Category Deleted',
@@ -69,8 +63,7 @@ const ProductsPage = () => {
       });
     }
   };
-  
-  // Handle edit product click
+
   const handleEditProduct = (item) => {
     setEditingItem(item);
     setIsAddDialogOpen(true);
@@ -109,9 +102,8 @@ const ProductsPage = () => {
                   <DialogTitle>{editingItem ? 'Edit Product' : 'Add New Product'}</DialogTitle>
                 </DialogHeader>
                 <AddMenuItem 
-                  isOpen={true} 
                   onClose={handleCloseDialog} 
-                  editItem={editingItem} 
+                  initialValues={editingItem}
                 />
               </DialogContent>
             </Dialog>
@@ -203,7 +195,6 @@ const ProductsPage = () => {
                               variant="outline" 
                               size="sm" 
                               onClick={() => {
-                                // TODO: Implement edit category
                                 toast({
                                   title: "Edit Category",
                                   description: "Category editing will be available soon",
