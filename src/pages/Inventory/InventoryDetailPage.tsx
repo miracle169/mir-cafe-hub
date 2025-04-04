@@ -232,11 +232,11 @@ const InventoryDetailPage = () => {
                         {cat}
                       </SelectItem>
                     ))}
-                    <SelectItem value="new">+ Add New Category</SelectItem>
+                    <SelectItem value="new-category">+ Add New Category</SelectItem>
                   </SelectContent>
                 </Select>
                 
-                {category === 'new' && (
+                {category === 'new-category' && (
                   <Input 
                     placeholder="New category name"
                     value="" 

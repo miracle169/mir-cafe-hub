@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,7 +17,7 @@ const ProductsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('products');
   const [filteredItems, setFilteredItems] = useState<any[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
@@ -36,11 +35,10 @@ const ProductsPage = () => {
   const { items: inventoryItems } = useInventory();
   const { toast } = useToast();
 
-  // Filter items based on search and category
   useEffect(() => {
     let filtered = items;
     
-    if (selectedCategoryId) {
+    if (selectedCategoryId && selectedCategoryId !== 'all') {
       filtered = filtered.filter(item => item.category === selectedCategoryId);
     }
     
@@ -144,7 +142,6 @@ const ProductsPage = () => {
             <TabsTrigger value="recipes" className="flex-1">Recipes</TabsTrigger>
           </TabsList>
           
-          {/* Products Tab */}
           <TabsContent value="products">
             <div className="flex justify-between items-center mb-4">
               <div className="relative flex-1 mr-2">
@@ -171,7 +168,7 @@ const ProductsPage = () => {
                   <SelectValue placeholder="Filter by category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Categories</SelectItem>
+                  <SelectItem value="all">All Categories</SelectItem>
                   {categories.map(category => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
@@ -223,7 +220,6 @@ const ProductsPage = () => {
             )}
           </TabsContent>
           
-          {/* Categories Tab */}
           <TabsContent value="categories">
             <div className="flex justify-end mb-4">
               <Button 
@@ -261,7 +257,6 @@ const ProductsPage = () => {
             )}
           </TabsContent>
           
-          {/* Recipes Tab */}
           <TabsContent value="recipes">
             <div className="text-center py-8">
               <p className="text-gray-500">Select a product to manage its recipe</p>
@@ -270,7 +265,6 @@ const ProductsPage = () => {
         </Tabs>
       </div>
 
-      {/* Add Product Dialog */}
       <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -343,7 +337,6 @@ const ProductsPage = () => {
         </DialogContent>
       </Dialog>
       
-      {/* Add Category Dialog */}
       <Dialog open={isAddCategoryDialogOpen} onOpenChange={setIsAddCategoryDialogOpen}>
         <DialogContent>
           <DialogHeader>

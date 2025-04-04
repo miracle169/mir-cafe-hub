@@ -112,11 +112,11 @@ const AddInventoryPage = () => {
                     {cat}
                   </SelectItem>
                 ))}
-                <SelectItem value="new">+ Add New Category</SelectItem>
+                <SelectItem value="new-category">+ Add New Category</SelectItem>
               </SelectContent>
             </Select>
             
-            {category === 'new' && (
+            {category === 'new-category' && (
               <div className="mt-2">
                 <Input 
                   placeholder="Enter new category name" 
