@@ -8,7 +8,7 @@ import { useCart } from '@/contexts/CartContext';
 import { useOrder, OrderType, PaymentMethod } from '@/contexts/OrderContext';
 import { useCustomer } from '@/contexts/CustomerContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Printer, QrCode, CreditCard, Clock, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 const OrderPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { items, totalAmount, clearCart } = useCart();
+  const { cart, totalAmount, clearCart } = useCart();
   const { createOrder, setKotPrinted, setBillPrinted } = useOrder();
   const { currentCustomer, addLoyaltyPoints } = useCustomer();
   const { currentUser } = useAuth();
@@ -30,7 +30,7 @@ const OrderPage = () => {
 
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
-  const [cashAmount, setCashAmount] = useState<string>(totalAmount.toString());
+  const [cashAmount, setCashAmount] = useState<string>((totalAmount || 0).toString());
   const [upiAmount, setUpiAmount] = useState<string>('0');
   const [showUpiQr, setShowUpiQr] = useState(false);
   const [orderCompleted, setOrderCompleted] = useState(false);
@@ -77,13 +77,13 @@ const OrderPage = () => {
   };
 
   useEffect(() => {
-    if (!currentUser || items.length === 0) {
+    if (!currentUser || !cart || cart.length === 0) {
       navigate('/pos');
       return;
     }
 
     const order = createOrder(
-      items,
+      cart,
       currentCustomer,
       orderType,
       tableNumber,
@@ -97,11 +97,12 @@ const OrderPage = () => {
   const handleCompletePayment = () => {
     if (!currentOrder) return;
 
+    const currentTotal = totalAmount || 0;
     const cashPayment = parseFloat(cashAmount) || 0;
     const upiPayment = parseFloat(upiAmount) || 0;
     const total = cashPayment + upiPayment;
 
-    if (total < totalAmount) {
+    if (total < currentTotal) {
       toast({
         title: "Payment Error",
         description: "The total payment amount is less than the bill amount",
@@ -114,12 +115,12 @@ const OrderPage = () => {
       method: paymentMethod,
       cash: paymentMethod === 'cash' || paymentMethod === 'split' ? cashPayment : 0,
       upi: paymentMethod === 'upi' || paymentMethod === 'split' ? upiPayment : 0,
-      total: totalAmount,
+      total: currentTotal,
     };
 
     try {
       if (currentCustomer) {
-        const loyaltyPoints = Math.floor(totalAmount / 10);
+        const loyaltyPoints = Math.floor(currentTotal / 10);
         addLoyaltyPoints(currentCustomer.id, loyaltyPoints);
       }
 
@@ -165,7 +166,7 @@ const OrderPage = () => {
               <span className="font-medium">{orderType}</span>
             </div>
             
-            {orderType === 'dine-in' && (
+            {orderType === 'dine-in' && tableNumber && (
               <div className="flex justify-between mb-3">
                 <span className="text-sm text-mir-gray-dark">Table Number</span>
                 <span className="font-medium">{tableNumber}</span>
@@ -174,7 +175,7 @@ const OrderPage = () => {
             
             <div className="flex justify-between mb-3">
               <span className="text-sm text-mir-gray-dark">Items</span>
-              <span className="font-medium">{items.length}</span>
+              <span className="font-medium">{cart?.length || 0}</span>
             </div>
             
             <div className="flex justify-between mb-3">
@@ -184,7 +185,7 @@ const OrderPage = () => {
             
             <div className="flex justify-between font-bold">
               <span>Total Amount</span>
-              <span>₹{totalAmount.toFixed(2)}</span>
+              <span>₹{(totalAmount || 0).toFixed(2)}</span>
             </div>
           </CardContent>
         </Card>
@@ -192,7 +193,7 @@ const OrderPage = () => {
         <div className="space-y-2 mb-6">
           <h3 className="font-bold text-lg text-mir-black">Order Items</h3>
           
-          {items.map((item) => (
+          {cart && cart.map((item) => (
             <div key={item.id} className="bg-white p-3 rounded-md shadow-sm">
               <div className="flex justify-between">
                 <div className="flex items-start">
@@ -267,11 +268,11 @@ const OrderPage = () => {
               onValueChange={(value) => {
                 setPaymentMethod(value as PaymentMethod);
                 if (value === 'cash') {
-                  setCashAmount(totalAmount.toString());
+                  setCashAmount((totalAmount || 0).toString());
                   setUpiAmount('0');
                 } else if (value === 'upi') {
                   setCashAmount('0');
-                  setUpiAmount(totalAmount.toString());
+                  setUpiAmount((totalAmount || 0).toString());
                 }
               }}
             >
@@ -333,7 +334,7 @@ const OrderPage = () => {
             <div className="pt-2">
               <div className="flex justify-between font-bold">
                 <span>Total Bill</span>
-                <span>₹{totalAmount.toFixed(2)}</span>
+                <span>₹{(totalAmount || 0).toFixed(2)}</span>
               </div>
               {paymentMethod === 'split' && (
                 <div className="flex justify-between mt-1">
