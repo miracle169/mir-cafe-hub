@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -81,12 +82,14 @@ const defaultStaffMembers: StaffMember[] = [
 ];
 
 // Provider component
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(defaultStaffMembers);
   const [session, setSession] = useState<Session | null>(null);
+  
+  // We need to get the toast from a hook inside the component function
   const { toast } = useToast();
 
   // Computed property for owner status
