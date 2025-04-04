@@ -10,7 +10,7 @@ import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./contexts/AuthContext";
 import { CartProvider } from "./contexts/CartContext";
 import { CustomerProvider } from "./contexts/CustomerContext";
-import { InventoryProvider } from "./contexts/InventoryProvider";
+import { InventoryProvider } from "./contexts/InventoryContext";
 import { MenuProvider } from "./contexts/MenuContext";
 import { OrderProvider } from "./contexts/OrderContext";
 import { AttendanceProvider } from "./contexts/AttendanceContext";

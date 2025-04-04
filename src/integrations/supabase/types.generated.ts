@@ -1,163 +1,118 @@
+// Generated types for Supabase
 
-// src/integrations/supabase/types.generated.ts
-
-export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
-
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       attendance: {
         Row: {
-          id: string;
-          staff_id: string;
-          check_in_time: string;
-          check_out_time: string | null;
-          date: string;
           created_at: string;
+          date: string;
+          check_in_time: string;
+          staff_id: string;
+          id: string;
+          check_out_time: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['attendance']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['attendance']['Row']>;
+        Insert: {
+          created_at?: string;
+          date: string;
+          check_in_time: string;
+          staff_id: string;
+          id?: string;
+          check_out_time?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          date?: string;
+          check_in_time?: string;
+          staff_id?: string;
+          id?: string;
+          check_out_time?: string | null;
+        };
       };
-      
       cash_register: {
         Row: {
+          opening_amount: number;
+          reason: string | null;
+          closing_amount: number | null;
           id: string;
           staff_id: string;
           date: string;
+          created_at: string;
+        };
+        Insert: {
           opening_amount: number;
-          closing_amount: number | null;
-          reason: string | null;
-          created_at: string;
+          reason?: string | null;
+          closing_amount?: number | null;
+          id?: string;
+          staff_id: string;
+          date: string;
+          created_at?: string;
         };
-        Insert: Omit<Database['public']['Tables']['cash_register']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['cash_register']['Row']>;
-      };
-      
-      customer_favorite_items: {
-        Row: {
-          id: string;
-          customer_id: string | null;
-          item_id: string | null;
-          created_at: string;
+        Update: {
+          opening_amount?: number;
+          reason?: string | null;
+          closing_amount?: number | null;
+          id?: string;
+          staff_id?: string;
+          date?: string;
+          created_at?: string;
         };
-        Insert: Omit<Database['public']['Tables']['customer_favorite_items']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['customer_favorite_items']['Row']>;
       };
-      
-      customers: {
+      staff: {
         Row: {
           id: string;
           name: string;
-          phone: string;
-          loyalty_points: number;
-          visit_count: number;
-          last_visit: string | null;
-          first_visit: string;
+          role: string;
+          email: string;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['customers']['Row'], 'id' | 'created_at' | 'loyalty_points' | 'visit_count' | 'first_visit'>;
-        Update: Partial<Database['public']['Tables']['customers']['Row']>;
+        Insert: {
+          id?: string;
+          name: string;
+          role: string;
+          email: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          role?: string;
+          email?: string;
+          created_at?: string;
+        };
       };
-      
-      inventory_items: {
+      inventory: {
         Row: {
           id: string;
           name: string;
           quantity: number;
           unit: string;
           low_stock_threshold: number | null;
+          last_updated: string;
           category: string;
           created_at: string;
-          last_updated: string;
         };
-        Insert: Omit<Database['public']['Tables']['inventory_items']['Row'], 'id' | 'created_at' | 'last_updated'>;
-        Update: Partial<Database['public']['Tables']['inventory_items']['Row']>;
-      };
-      
-      menu_categories: {
-        Row: {
-          id: string;
+        Insert: {
+          id?: string;
           name: string;
-          created_at: string;
-        };
-        Insert: Omit<Database['public']['Tables']['menu_categories']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['menu_categories']['Row']>;
-      };
-      
-      menu_items: {
-        Row: {
-          id: string;
-          name: string;
-          price: number;
-          category_id: string | null;
-          description: string | null;
-          image: string | null;
-          created_at: string;
-        };
-        Insert: Omit<Database['public']['Tables']['menu_items']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['menu_items']['Row']>;
-      };
-      
-      order_items: {
-        Row: {
-          id: string;
-          order_id: string;
-          item_id: string;
           quantity: number;
-          price: number;
-          created_at: string;
+          unit: string;
+          low_stock_threshold?: number | null;
+          last_updated?: string;
+          category: string;
+          created_at?: string;
         };
-        Insert: Omit<Database['public']['Tables']['order_items']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['order_items']['Row']>;
-      };
-      
-      orders: {
-        Row: {
-          id: string;
-          order_number: string;
-          customer_id: string | null;
-          staff_id: string;
-          total_amount: number;
-          status: string;
-          order_type: string;
-          table_number: string | null;
-          payment_method: string | null;
-          cash_amount: number | null;
-          upi_amount: number | null;
-          notes: string | null;
-          kot_printed: boolean | null;
-          bill_printed: boolean | null;
-          created_at: string;
-          updated_at: string;
-          completed_at: string | null;
+        Update: {
+          id?: string;
+          name?: string;
+          quantity?: number;
+          unit?: string;
+          low_stock_threshold?: number | null;
+          last_updated?: string;
+          category?: string;
+          created_at?: string;
         };
-        Insert: Omit<Database['public']['Tables']['orders']['Row'], 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['orders']['Row']>;
       };
-      
-      owner_config: {
-        Row: {
-          id: string;
-          whatsapp_api_key: string | null;
-          upi_qr_code_url: string | null;
-        };
-        Insert: Omit<Database['public']['Tables']['owner_config']['Row'], 'id'>;
-        Update: Partial<Database['public']['Tables']['owner_config']['Row']>;
-      };
-      
-      purchase_items: {
-        Row: {
-          id: string;
-          purchase_id: string;
-          item_id: string;
-          quantity: number;
-          unit_price: number;
-          created_at: string;
-        };
-        Insert: Omit<Database['public']['Tables']['purchase_items']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['purchase_items']['Row']>;
-      };
-      
       purchase_logs: {
         Row: {
           id: string;
@@ -168,26 +123,164 @@ export interface Database {
           balance: number;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['purchase_logs']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['purchase_logs']['Row']>;
+        Insert: {
+          id?: string;
+          staff_id: string;
+          date: string;
+          total_amount: number;
+          money_received: number;
+          balance: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          staff_id?: string;
+          date?: string;
+          total_amount?: number;
+          money_received?: number;
+          balance?: number;
+          created_at?: string;
+        };
       };
-      
-      staff: {
+      purchase_items: {
+        Row: {
+          id: string;
+          purchase_id: string;
+          item_id: string;
+          quantity: number;
+          unit_price: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          purchase_id: string;
+          item_id: string;
+          quantity: number;
+          unit_price: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          purchase_id?: string;
+          item_id?: string;
+          quantity?: number;
+          unit_price?: number;
+          created_at?: string;
+        };
+      };
+      customers: {
         Row: {
           id: string;
           name: string;
-          role: string;
+          phone: string | null;
+          email: string | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['staff']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['staff']['Row']>;
+        Insert: {
+          id?: string;
+          name: string;
+          phone?: string | null;
+          email?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          phone?: string | null;
+          email?: string | null;
+          created_at?: string;
+        };
+      };
+      orders: {
+        Row: {
+          id: string;
+          customer_id: string | null;
+          staff_id: string;
+          total_amount: number;
+          status: string;
+          created_at: string;
+          payment_method: string;
+        };
+        Insert: {
+          id?: string;
+          customer_id?: string | null;
+          staff_id: string;
+          total_amount: number;
+          status: string;
+          created_at?: string;
+          payment_method: string;
+        };
+        Update: {
+          id?: string;
+          customer_id?: string | null;
+          staff_id?: string;
+          total_amount?: number;
+          status?: string;
+          created_at?: string;
+          payment_method?: string;
+        };
+      };
+      order_items: {
+        Row: {
+          id: string;
+          order_id: string;
+          product_id: string;
+          quantity: number;
+          unit_price: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          product_id: string;
+          quantity: number;
+          unit_price: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          order_id?: string;
+          product_id?: string;
+          quantity?: number;
+          unit_price?: number;
+          created_at?: string;
+        };
+      };
+      products: {
+        Row: {
+          id: string;
+          name: string;
+          price: number;
+          category: string;
+          created_at: string;
+          active: boolean;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          price: number;
+          category: string;
+          created_at?: string;
+          active?: boolean;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          price?: number;
+          category?: string;
+          created_at?: string;
+          active?: boolean;
+        };
       };
     };
-    
-    Views: {};
-    Functions: {};
-    Enums: {};
-    CompositeTypes: {};
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      [_ in never]: never;
+    };
+    Enums: {
+      [_ in never]: never;
+    };
   };
-}
-
+};
