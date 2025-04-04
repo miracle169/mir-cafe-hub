@@ -31,6 +31,10 @@ import CashDrawerPage from "./pages/CashDrawer/CashDrawerPage";
 import DashboardPage from "./pages/Dashboard/DashboardPage";
 import UploadPage from "./pages/Upload/UploadPage";
 import StaffManagementPage from "./pages/StaffManagement/StaffManagementPage";
+import SettingsPage from "./pages/Settings/SettingsPage";
+import ReceiptsPage from "./pages/Receipts/ReceiptsPage";
+import CustomersPage from "./pages/Customers/CustomersPage";
+import ProductsPage from "./pages/Products/ProductsPage";
 
 const queryClient = new QueryClient();
 
@@ -53,15 +57,19 @@ const App = () => (
                         <Route path="/pos/cart" element={<CartPage />} />
                         <Route path="/pos/order" element={<OrderPage />} />
                         <Route path="/pos/view-order/:id" element={<ViewOrderPage />} />
+                        <Route path="/receipts" element={<ReceiptsPage />} />
+                        <Route path="/customers" element={<CustomersPage />} />
                         <Route path="/purchases" element={<PurchasesPage />} />
                         <Route path="/purchases/add" element={<AddPurchasePage />} />
                         <Route path="/inventory" element={<InventoryPage />} />
                         <Route path="/inventory/:id" element={<InventoryDetailPage />} />
                         <Route path="/inventory/add" element={<AddInventoryPage />} />
+                        <Route path="/products" element={<ProductsPage />} />
                         <Route path="/attendance" element={<AttendancePage />} />
                         <Route path="/cash-drawer" element={<CashDrawerPage />} />
                         <Route path="/dashboard" element={<DashboardPage />} />
                         <Route path="/upload" element={<UploadPage />} />
+                        <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/staff-management" element={<StaffManagementPage />} />
                         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                         <Route path="*" element={<NotFound />} />

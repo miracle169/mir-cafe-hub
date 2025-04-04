@@ -357,6 +357,24 @@ export type Database = {
           },
         ]
       }
+      owner_config: {
+        Row: {
+          id: string
+          upi_qr_code_url: string | null
+          whatsapp_api_key: string | null
+        }
+        Insert: {
+          id?: string
+          upi_qr_code_url?: string | null
+          whatsapp_api_key?: string | null
+        }
+        Update: {
+          id?: string
+          upi_qr_code_url?: string | null
+          whatsapp_api_key?: string | null
+        }
+        Relationships: []
+      }
       purchase_items: {
         Row: {
           created_at: string

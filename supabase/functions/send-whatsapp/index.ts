@@ -1,123 +1,114 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { Order, WhatsAppMessage } from "./types.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
+// Define CORS headers
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Interface for request body
+interface RequestBody {
+  order: {
+    id: string;
+    items: { name: string; quantity: number; price: number }[];
+    customer: { name: string; phone: string } | null;
+    totalAmount: number;
+    orderType: string;
+    tableNumber?: string;
+  };
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders, status: 200 });
   }
 
   try {
-    // Get request body
-    const { order } = await req.json() as { order: Order };
-
-    if (!order) {
-      return new Response(
-        JSON.stringify({ error: "No order data provided" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
-    }
-
-    // Check if customer phone exists
-    if (!order.customer?.phone) {
-      console.log("No customer phone number available for order:", order.id);
-      return new Response(
-        JSON.stringify({ error: "No customer phone number available" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
-    }
-
-    // Format the WhatsApp message
-    const message = formatReceiptMessage(order);
-    
-    // Send WhatsApp message using CallMeBot API
-    const phone = formatPhoneNumber(order.customer.phone);
-    const success = await sendWhatsAppMessage({ phone, message });
-
-    return new Response(
-      JSON.stringify({ success, message: "WhatsApp message sent successfully" }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    // Create Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
+    // Parse request body
+    const { order } = await req.json() as RequestBody;
+    
+    // Get WhatsApp API key from owner_config
+    const { data: configData, error: configError } = await supabaseClient
+      .from('owner_config')
+      .select('whatsapp_api_key')
+      .single();
+    
+    if (configError || !configData?.whatsapp_api_key) {
+      console.error("Error fetching WhatsApp API key:", configError);
+      return new Response(
+        JSON.stringify({ error: "WhatsApp API key not configured" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+    
+    // Customer phone is required for WhatsApp
+    if (!order.customer?.phone) {
+      return new Response(
+        JSON.stringify({ error: "Customer phone number is required" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+    
+    // Prepare WhatsApp message
+    const itemsList = order.items
+      .map(item => `${item.quantity}x ${item.name} - ₹${item.price * item.quantity}`)
+      .join("\n");
+      
+    const message = `
+*Thank you for your order at Mir Cafe!*
+
+Order #${order.id.substring(0, 6)}
+Customer: ${order.customer.name}
+
+*Items:*
+${itemsList}
+
+*Total Amount:* ₹${order.totalAmount}
+
+We hope to see you again soon!
+`;
+
+    // Format phone number (remove + and any spaces)
+    const phone = order.customer.phone.replace(/[\s+]/g, "");
+    
+    // Send WhatsApp message using the API key
+    // Note: This is a placeholder - replace with your actual WhatsApp API integration
+    // This example assumes a simple REST API that accepts a phone and message
+    const whatsappResponse = await fetch("https://api.whatsapp.com/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${configData.whatsapp_api_key}`
+      },
+      body: JSON.stringify({
+        phone: phone,
+        message: message
+      })
+    });
+    
+    // Log the result for debugging
+    console.log("WhatsApp API response status:", whatsappResponse.status);
+    
+    // Return success response
+    return new Response(
+      JSON.stringify({ success: true, message: "WhatsApp notification sent" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+    );
+    
   } catch (error) {
-    console.error("Error sending WhatsApp message:", error);
+    console.error("Error in send-whatsapp function:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });
-
-function formatPhoneNumber(phone: string): string {
-  // Remove any non-digit characters
-  const digits = phone.replace(/\D/g, "");
-  
-  // Ensure the number starts with country code (assuming India +91)
-  if (digits.length === 10) {
-    return "91" + digits;
-  }
-  
-  // If already has country code
-  return digits;
-}
-
-function formatReceiptMessage(order: Order): string {
-  const date = new Date(order.createdAt).toLocaleString();
-  const orderType = order.type.charAt(0).toUpperCase() + order.type.slice(1);
-  
-  let message = `📝 *MIR CAFÉ - RECEIPT* 📝\n\n`;
-  message += `*Order #${order.id.slice(-5)}*\n`;
-  message += `*Date:* ${date}\n`;
-  message += `*Order Type:* ${orderType}\n`;
-  if (order.type === 'dine-in' && order.tableNumber) {
-    message += `*Table:* ${order.tableNumber}\n`;
-  }
-  message += `*Customer:* ${order.customer?.name || 'Guest'}\n\n`;
-  
-  message += `*ITEMS:*\n`;
-  order.items.forEach(item => {
-    message += `${item.quantity}x ${item.name} - ₹${item.price.toFixed(2)}/each\n`;
-  });
-  
-  message += `\n*TOTAL: ₹${order.totalAmount.toFixed(2)}*\n\n`;
-  
-  if (order.paymentMethod) {
-    message += `*Payment:* ${order.paymentMethod}\n`;
-  }
-  
-  message += `\nThank you for visiting Mir Café!\nWe hope to see you again soon. ☕`;
-  
-  return message;
-}
-
-async function sendWhatsAppMessage(data: WhatsAppMessage): Promise<boolean> {
-  try {
-    // Format the URL for CallMeBot API
-    // Using format: https://api.callmebot.com/whatsapp.php?phone=[phone]&text=[message]&apikey=[api]
-    const url = new URL("https://api.callmebot.com/whatsapp.php");
-    url.searchParams.append("phone", data.phone);
-    url.searchParams.append("text", encodeURIComponent(data.message));
-    
-    // Get API key from environment variable or use a default for testing
-    const apiKey = Deno.env.get("CALLMEBOT_API_KEY") || "123456";
-    url.searchParams.append("apikey", apiKey);
-    
-    const response = await fetch(url.toString());
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("CallMeBot API error:", errorText);
-      return false;
-    }
-    
-    return true;
-  } catch (error) {
-    console.error("Error sending WhatsApp message:", error);
-    return false;
-  }
-}
