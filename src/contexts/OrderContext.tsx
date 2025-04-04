@@ -172,7 +172,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         
         const items = itemsData.map(item => ({
           id: item.item_id,
-          name: item.menu_items?.name || 'Unknown Item',
+          name: item.menu_items ? (item.menu_items as any).name : 'Unknown Item',
           price: item.price,
           quantity: item.quantity,
           category: '', // We would need another query to get category name
@@ -368,7 +368,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           cash_amount: paymentDetails.cash,
           upi_amount: paymentDetails.upi,
         })
-        .eq('id', id);
+        .eq('id', orderId);
         
       if (error) throw error;
       
