@@ -14,13 +14,15 @@ export interface CartItem {
 // Define the CartContext interface
 interface CartContextType {
   cart: CartItem[];
+  items: CartItem[]; // Alias for cart
   addToCart: (item: CartItem) => void;
   removeFromCart: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   clearCart: () => void;
   updateCart: (newCart: CartItem[]) => void;
-  items: CartItem[]; // Alias for cart
   totalAmount: number; // Total amount calculated from cart items
+  discount: number; // Discount amount
+  setDiscount: (amount: number) => void;
 }
 
 // Create the context
@@ -29,13 +31,14 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 // Provider component
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [discount, setDiscount] = useState<number>(0);
   const { toast } = useToast();
 
   // Calculate total amount
   const totalAmount = cart.reduce(
     (sum, item) => sum + item.price * item.quantity, 
     0
-  );
+  ) - discount;
 
   // Add item to cart
   const addToCart = (item: CartItem) => {
@@ -90,6 +93,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Clear the cart
   const clearCart = () => {
     setCart([]);
+    setDiscount(0);
     toast({
       title: 'Cart Cleared',
       description: 'All items have been removed from the cart',
@@ -100,13 +104,15 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Context value
   const value = {
     cart,
+    items: cart, // Alias for compatibility
     addToCart,
     removeFromCart,
     updateQuantity,
     clearCart,
     updateCart,
-    items: cart, // Alias for compatibility
     totalAmount, // Provide the calculated total
+    discount,
+    setDiscount,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

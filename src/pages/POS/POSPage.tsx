@@ -6,18 +6,21 @@ import { useCart } from '@/contexts/CartContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, ShoppingCart, Tag } from 'lucide-react';
+import { Search, ShoppingCart, Tag, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useCustomer } from '@/contexts/CustomerContext';
 
 const POSPage = () => {
-  const { menuItems = [], categories = [], isLoading = false } = useMenu();
+  const { items: menuItems = [], categories = [], isLoading = false } = useMenu();
   const { cart = [], updateCart } = useCart();
+  const { currentCustomer } = useCustomer();
   const navigate = useNavigate();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showCategoryItems, setShowCategoryItems] = useState(false);
 
   // Handle adding item to cart
   const handleAddItem = (item) => {
@@ -56,6 +59,24 @@ const POSPage = () => {
   // Calculate total items in cart
   const totalItems = cart ? cart.reduce((sum, item) => sum + item.quantity, 0) : 0;
 
+  // Handle category selection
+  const handleCategorySelect = (categoryId) => {
+    setSelectedCategory(categoryId);
+    setShowCategoryItems(true);
+  };
+
+  // Handle back button click
+  const handleBackToCategories = () => {
+    setShowCategoryItems(false);
+    setSelectedCategory(null);
+  };
+
+  // Get category name
+  const getCategoryName = (categoryId) => {
+    const category = categories?.find(c => c.id === categoryId);
+    return category ? category.name : 'All Items';
+  };
+
   return (
     <Layout title="Point of Sale">
       <div className="p-4 max-w-7xl mx-auto">
@@ -89,23 +110,79 @@ const POSPage = () => {
               </Button>
             </div>
 
-            <Tabs defaultValue="all" className="w-full">
-              <TabsList className="mb-4 w-full overflow-x-auto flex flex-nowrap justify-start">
-                <TabsTrigger value="all" onClick={() => setSelectedCategory(null)}>
-                  All Items
-                </TabsTrigger>
-                {categories && categories.map((category) => (
-                  <TabsTrigger 
-                    key={category.id} 
-                    value={category.id}
-                    onClick={() => setSelectedCategory(category.id)}
-                  >
-                    {category.name}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+            {/* Customer Info - if available */}
+            {currentCustomer && (
+              <Card className="mb-4">
+                <CardContent className="p-3">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="font-medium">{currentCustomer.name}</h3>
+                      <p className="text-sm text-gray-500">{currentCustomer.phone}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold">{currentCustomer.loyaltyPoints} points</p>
+                      <p className="text-xs text-gray-500">
+                        Last visit: {new Date(currentCustomer.lastVisit).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  {currentCustomer.favoriteItems && currentCustomer.favoriteItems.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <p className="text-xs text-gray-500">Favorite items: {currentCustomer.favoriteItems.join(', ')}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
-              <TabsContent value="all" className="mt-0">
+            {!showCategoryItems ? (
+              // Categories View
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => handleCategorySelect(null)}
+                >
+                  <CardContent className="p-4 text-center">
+                    <h3 className="font-medium">All Items</h3>
+                    <p className="text-sm text-gray-500">
+                      {menuItems ? menuItems.length : 0} items
+                    </p>
+                  </CardContent>
+                </Card>
+                
+                {categories && categories.map((category) => (
+                  <Card 
+                    key={category.id} 
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => handleCategorySelect(category.id)}
+                  >
+                    <CardContent className="p-4 text-center">
+                      <h3 className="font-medium">{category.name}</h3>
+                      <p className="text-sm text-gray-500">
+                        {menuItems ? menuItems.filter(item => item.category === category.id).length : 0} items
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              // Category Items View
+              <div>
+                <div className="flex items-center mb-4">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleBackToCategories}
+                    className="mr-2"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-1" />
+                    Back
+                  </Button>
+                  <h2 className="text-lg font-medium">
+                    {selectedCategory === null ? 'All Items' : getCategoryName(selectedCategory)}
+                  </h2>
+                </div>
+                
                 {isLoading ? (
                   <div className="text-center py-8">Loading menu items...</div>
                 ) : filteredItems.length > 0 ? (
@@ -139,34 +216,8 @@ const POSPage = () => {
                     <p>No menu items found.</p>
                   </div>
                 )}
-              </TabsContent>
-
-              {categories && categories.map((category) => (
-                <TabsContent key={category.id} value={category.id} className="mt-0">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {filteredItems.map((item) => (
-                      <Card key={item.id} className="overflow-hidden">
-                        <CardContent className="p-4">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <h3 className="font-medium">{item.name}</h3>
-                              <p className="text-sm text-gray-500">₹{item.price.toFixed(2)}</p>
-                            </div>
-                          </div>
-                          <Button 
-                            onClick={() => handleAddItem(item)} 
-                            className="w-full mt-2"
-                            size="sm"
-                          >
-                            Add to Cart
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </TabsContent>
-              ))}
-            </Tabs>
+              </div>
+            )}
           </div>
         </div>
       </div>

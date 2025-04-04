@@ -1,363 +1,388 @@
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { useCart } from '@/contexts/CartContext';
-import { useOrder, OrderType, PaymentMethod } from '@/contexts/OrderContext';
 import { useCustomer } from '@/contexts/CustomerContext';
+import { useOrder } from '@/contexts/OrderContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
-import { Printer, QrCode, CreditCard, Clock, Check } from 'lucide-react';
-import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Check, Printer } from 'lucide-react';
+import { printKOT, printBill, connectPrinter, isPrinterConnected } from '@/utils/printing';
+import { useToast } from '@/hooks/use-toast';
 
 const OrderPage = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { cart, totalAmount, clearCart } = useCart();
-  const { createOrder, setKotPrinted, setBillPrinted } = useOrder();
-  const { currentCustomer, addLoyaltyPoints } = useCustomer();
+  const { cart = [], totalAmount = 0, clearCart } = useCart();
+  const { currentCustomer } = useCustomer();
+  const { createOrder } = useOrder();
   const { currentUser } = useAuth();
   const { toast } = useToast();
 
-  const state = location.state as { orderType: OrderType; tableNumber?: string };
-  const orderType = state?.orderType || 'takeaway';
-  const tableNumber = state?.tableNumber || '';
+  const [orderType, setOrderType] = useState<'dine-in' | 'takeaway' | 'delivery'>('dine-in');
+  const [tableNumber, setTableNumber] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'split'>('cash');
+  const [cashAmount, setCashAmount] = useState<number>(0);
+  const [upiAmount, setUpiAmount] = useState<number>(0);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [printerConnected, setPrinterConnected] = useState<boolean>(isPrinterConnected());
+  
+  // Calculate discount from cart context
+  const discount = totalAmount - cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  
+  // Total after applying discount
+  const finalTotal = totalAmount;
 
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
-  const [cashAmount, setCashAmount] = useState<string>((totalAmount || 0).toString());
-  const [upiAmount, setUpiAmount] = useState<string>('0');
-  const [showUpiQr, setShowUpiQr] = useState(false);
-  const [orderCompleted, setOrderCompleted] = useState(false);
-  const [currentOrder, setCurrentOrder] = useState<any>(null);
-
-  const handlePrintKot = () => {
-    if (!currentOrder) {
-      toast({
-        title: "Error",
-        description: "Order not created yet",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      title: "KOT Printed",
-      description: `Order #${currentOrder.id.slice(0, 5)} sent to kitchen`,
-    });
-
-    setKotPrinted(currentOrder.id);
-    
-    // After printing KOT, redirect to POS page and clear cart
-    clearCart();
-    navigate('/pos');
-  };
-
-  const handlePrintBill = () => {
-    if (!currentOrder) {
-      toast({
-        title: "Error",
-        description: "Order not created yet",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      title: "Bill Printed",
-      description: `Bill for Order #${currentOrder.id.slice(0, 5)} printed`,
-    });
-
-    setBillPrinted(currentOrder.id);
-  };
-
-  useEffect(() => {
-    if (!currentUser || !cart || cart.length === 0) {
-      navigate('/pos');
-      return;
-    }
-
-    const order = createOrder(
-      cart,
-      currentCustomer,
-      orderType,
-      tableNumber,
-      currentUser.id,
-      currentUser.name
-    );
-
-    setCurrentOrder(order);
-  }, []);
-
-  const handleCompletePayment = () => {
-    if (!currentOrder) return;
-
-    const currentTotal = totalAmount || 0;
-    const cashPayment = parseFloat(cashAmount) || 0;
-    const upiPayment = parseFloat(upiAmount) || 0;
-    const total = cashPayment + upiPayment;
-
-    if (total < currentTotal) {
-      toast({
-        title: "Payment Error",
-        description: "The total payment amount is less than the bill amount",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const paymentDetails = {
-      method: paymentMethod,
-      cash: paymentMethod === 'cash' || paymentMethod === 'split' ? cashPayment : 0,
-      upi: paymentMethod === 'upi' || paymentMethod === 'split' ? upiPayment : 0,
-      total: currentTotal,
-    };
-
+  // Handle connect printer button click
+  const handleConnectPrinter = async () => {
     try {
-      if (currentCustomer) {
-        const loyaltyPoints = Math.floor(currentTotal / 10);
-        addLoyaltyPoints(currentCustomer.id, loyaltyPoints);
-      }
-
-      setPaymentDialogOpen(false);
-      setOrderCompleted(true);
-
-      toast({
-        title: "Order Completed",
-        description: "Payment processed successfully",
-      });
-
-      // Clear cart immediately after payment is processed
-      clearCart();
+      const connected = await connectPrinter();
+      setPrinterConnected(connected);
       
-      // Redirect to POS page after a short delay
-      setTimeout(() => {
-        navigate('/pos');
-      }, 2000);
+      if (connected) {
+        toast({
+          title: 'Printer Connected',
+          description: 'Successfully connected to printer',
+          duration: 1000,
+        });
+      } else {
+        toast({
+          title: 'Connection Failed',
+          description: 'Failed to connect to printer',
+          variant: 'destructive',
+          duration: 1000,
+        });
+      }
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to complete the order",
-        variant: "destructive",
+        title: 'Connection Error',
+        description: 'Error connecting to printer',
+        variant: 'destructive',
+        duration: 1000,
       });
     }
   };
 
-  const handleShowUpiQr = () => {
-    setShowUpiQr(true);
-    toast({
-      title: "UPI QR Code",
-      description: "Show this QR code to the customer for payment",
-    });
+  // Handle place order button click
+  const handlePlaceOrder = async () => {
+    if (!cart || cart.length === 0) {
+      toast({
+        title: 'Empty Cart',
+        description: 'Your cart is empty',
+        variant: 'destructive',
+        duration: 1000,
+      });
+      return;
+    }
+
+    if (orderType === 'dine-in' && !tableNumber) {
+      toast({
+        title: 'Table Required',
+        description: 'Please enter a table number for dine-in orders',
+        variant: 'destructive',
+        duration: 1000,
+      });
+      return;
+    }
+
+    if (paymentMethod === 'split') {
+      const total = cashAmount + upiAmount;
+      if (Math.abs(total - finalTotal) > 0.01) {
+        toast({
+          title: 'Invalid Split Payment',
+          description: `Total split amount (₹${total.toFixed(2)}) must equal total (₹${finalTotal.toFixed(2)})`,
+          variant: 'destructive',
+          duration: 1000,
+        });
+        return;
+      }
+    }
+
+    try {
+      setIsProcessing(true);
+
+      let staffId = '';
+      let staffName = '';
+      
+      if (currentUser) {
+        staffId = currentUser.id;
+        staffName = currentUser.name;
+      }
+
+      // Create the order
+      const order = await createOrder(
+        cart,
+        currentCustomer,
+        orderType,
+        orderType === 'dine-in' ? tableNumber : undefined,
+        staffId,
+        staffName
+      );
+
+      // Print KOT if printer is connected
+      if (printerConnected) {
+        try {
+          await printKOT(order);
+          toast({
+            title: 'KOT Printed',
+            description: 'Kitchen Order Ticket printed successfully',
+            duration: 1000,
+          });
+        } catch (error) {
+          console.error('Error printing KOT:', error);
+          toast({
+            title: 'Print Failed',
+            description: 'Failed to print KOT',
+            variant: 'destructive',
+            duration: 1000,
+          });
+        }
+      }
+
+      // Clear the cart
+      clearCart();
+
+      // Show success message
+      toast({
+        title: 'Order Placed',
+        description: 'Your order has been placed successfully',
+        duration: 1000,
+      });
+
+      // Navigate to the view order page
+      navigate(`/pos/view-order/${order.id}`);
+    } catch (error) {
+      console.error('Error placing order:', error);
+      toast({
+        title: 'Order Failed',
+        description: 'Failed to place order',
+        variant: 'destructive',
+        duration: 1000,
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
+  // If cart is empty, redirect to POS
+  if (!cart || cart.length === 0) {
+    navigate('/pos');
+    return null;
+  }
+
   return (
-    <Layout title="Order Details" showBackButton>
-      <div className="mir-container pb-20">
+    <Layout title="Checkout" showBackButton>
+      <div className="p-4 max-w-xl mx-auto">
         <Card className="mb-4">
-          <CardContent className="p-4">
-            <div className="flex justify-between mb-3">
-              <span className="text-sm text-mir-gray-dark">Order Type</span>
-              <span className="font-medium">{orderType}</span>
-            </div>
-            
-            {orderType === 'dine-in' && tableNumber && (
-              <div className="flex justify-between mb-3">
-                <span className="text-sm text-mir-gray-dark">Table Number</span>
-                <span className="font-medium">{tableNumber}</span>
+          <CardHeader>
+            <CardTitle>Order Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {cart.map((item) => (
+                <div key={item.id} className="flex justify-between">
+                  <span>
+                    {item.quantity}x {item.name}
+                  </span>
+                  <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                </div>
+              ))}
+              
+              <Separator className="my-2" />
+              
+              <div className="flex justify-between">
+                <span>Subtotal:</span>
+                <span>₹{totalAmount.toFixed(2)}</span>
               </div>
-            )}
-            
-            <div className="flex justify-between mb-3">
-              <span className="text-sm text-mir-gray-dark">Items</span>
-              <span className="font-medium">{cart?.length || 0}</span>
-            </div>
-            
-            <div className="flex justify-between mb-3">
-              <span className="text-sm text-mir-gray-dark">Customer</span>
-              <span className="font-medium">{currentCustomer?.name || 'Guest'}</span>
-            </div>
-            
-            <div className="flex justify-between font-bold">
-              <span>Total Amount</span>
-              <span>₹{(totalAmount || 0).toFixed(2)}</span>
+              
+              {discount !== 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Discount:</span>
+                  <span>-₹{Math.abs(discount).toFixed(2)}</span>
+                </div>
+              )}
+              
+              <div className="flex justify-between font-bold">
+                <span>Total:</span>
+                <span>₹{finalTotal.toFixed(2)}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <div className="space-y-2 mb-6">
-          <h3 className="font-bold text-lg text-mir-black">Order Items</h3>
-          
-          {cart && cart.map((item) => (
-            <div key={item.id} className="bg-white p-3 rounded-md shadow-sm">
-              <div className="flex justify-between">
-                <div className="flex items-start">
-                  <span className="bg-mir-yellow text-mir-black text-xs font-medium rounded px-1.5 py-0.5 mr-2">
-                    {item.quantity}x
-                  </span>
-                  <div>
-                    <p className="font-medium text-mir-black">{item.name}</p>
-                    <p className="text-xs text-mir-gray-dark">₹{item.price.toFixed(2)}</p>
-                  </div>
-                </div>
-                <p className="font-medium">₹{(item.price * item.quantity).toFixed(2)}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {!orderCompleted ? (
-          <div className="space-y-3">
-            <Button 
-              className="w-full flex items-center justify-center bg-mir-yellow text-mir-black hover:bg-mir-yellow/90"
-              onClick={handlePrintKot}
-            >
-              <Printer className="mr-2 h-4 w-4" />
-              Print KOT
-            </Button>
-            
-            <Button 
-              className="w-full flex items-center justify-center bg-mir-red text-white hover:bg-mir-red/90"
-              onClick={() => setPaymentDialogOpen(true)}
-            >
-              <CreditCard className="mr-2 h-4 w-4" />
-              Process Payment
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="bg-green-50 border border-green-200 rounded-md p-4 text-center">
-              <Check className="h-6 w-6 text-green-500 mx-auto mb-2" />
-              <h3 className="font-bold text-green-700">Order Completed</h3>
-              <p className="text-green-600 text-sm">The order has been processed successfully</p>
-            </div>
-            
-            <Button 
-              className="w-full flex items-center justify-center bg-mir-red text-white hover:bg-mir-red/90"
-              onClick={handlePrintBill}
-            >
-              <Printer className="mr-2 h-4 w-4" />
-              Print Bill
-            </Button>
-            
-            <Button 
-              variant="outline"
-              className="w-full flex items-center justify-center"
-              onClick={() => navigate('/pos')}
-            >
-              <Clock className="mr-2 h-4 w-4" />
-              New Order
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent>
-          <DialogTitle>Process Payment</DialogTitle>
-          <DialogDescription>Select payment method and enter details</DialogDescription>
-          
-          <div className="space-y-4 py-2">
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Order Type</CardTitle>
+          </CardHeader>
+          <CardContent>
             <RadioGroup 
-              value={paymentMethod} 
-              onValueChange={(value) => {
-                setPaymentMethod(value as PaymentMethod);
-                if (value === 'cash') {
-                  setCashAmount((totalAmount || 0).toString());
-                  setUpiAmount('0');
-                } else if (value === 'upi') {
-                  setCashAmount('0');
-                  setUpiAmount((totalAmount || 0).toString());
-                }
-              }}
+              defaultValue={orderType} 
+              onValueChange={(value) => setOrderType(value as 'dine-in' | 'takeaway' | 'delivery')}
+              className="flex flex-col space-y-2"
             >
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="cash" id="cash" />
-                <Label htmlFor="cash">Cash</Label>
+                <RadioGroupItem value="dine-in" id="dine-in" />
+                <Label htmlFor="dine-in">Dine-in</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="upi" id="upi" />
-                <Label htmlFor="upi">UPI</Label>
+                <RadioGroupItem value="takeaway" id="takeaway" />
+                <Label htmlFor="takeaway">Takeaway</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="split" id="split" />
-                <Label htmlFor="split">Split Payment</Label>
+                <RadioGroupItem value="delivery" id="delivery" />
+                <Label htmlFor="delivery">Delivery</Label>
               </div>
             </RadioGroup>
-            
-            {(paymentMethod === 'cash' || paymentMethod === 'split') && (
-              <div className="space-y-2">
-                <Label htmlFor="cash-amount">Cash Amount (₹)</Label>
+
+            {orderType === 'dine-in' && (
+              <div className="mt-4">
+                <Label htmlFor="table-number">Table Number</Label>
                 <Input 
-                  id="cash-amount" 
-                  type="number" 
-                  value={cashAmount}
-                  onChange={(e) => setCashAmount(e.target.value)}
+                  id="table-number" 
+                  placeholder="Enter table number" 
+                  value={tableNumber}
+                  onChange={(e) => setTableNumber(e.target.value)}
+                  className="mt-1"
                 />
               </div>
             )}
-            
-            {(paymentMethod === 'upi' || paymentMethod === 'split') && (
-              <div className="space-y-2">
-                <Label htmlFor="upi-amount">UPI Amount (₹)</Label>
-                <Input 
-                  id="upi-amount" 
-                  type="number" 
-                  value={upiAmount}
-                  onChange={(e) => setUpiAmount(e.target.value)}
-                />
+          </CardContent>
+        </Card>
+
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Additional Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Textarea 
+              placeholder="Add any special instructions or notes here..." 
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Payment Method</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'cash' | 'upi' | 'split')}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="cash">Cash</TabsTrigger>
+                <TabsTrigger value="upi">UPI</TabsTrigger>
+                <TabsTrigger value="split">Split</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="cash" className="mt-4">
+                <p className="text-sm text-gray-500">Collect ₹{finalTotal.toFixed(2)} in cash from the customer.</p>
+              </TabsContent>
+              
+              <TabsContent value="upi" className="mt-4">
+                <p className="text-sm text-gray-500">Collect ₹{finalTotal.toFixed(2)} via UPI payment.</p>
+              </TabsContent>
+              
+              <TabsContent value="split" className="mt-4 space-y-4">
+                <div>
+                  <Label htmlFor="cash-amount">Cash Amount</Label>
+                  <Input 
+                    id="cash-amount" 
+                    type="number" 
+                    placeholder="Enter cash amount" 
+                    value={cashAmount || ''}
+                    onChange={(e) => setCashAmount(parseFloat(e.target.value) || 0)}
+                    className="mt-1"
+                  />
+                </div>
                 
-                <Button 
-                  variant="outline" 
-                  className="w-full mt-2"
-                  onClick={handleShowUpiQr}
-                >
-                  <QrCode className="mr-2 h-4 w-4" />
-                  Show UPI QR Code
-                </Button>
-              </div>
-            )}
-            
-            {showUpiQr && (paymentMethod === 'upi' || paymentMethod === 'split') && (
-              <div className="bg-white p-4 border rounded-md flex justify-center">
-                <div className="bg-mir-black p-4 rounded-md inline-block">
-                  <QrCode className="h-32 w-32 text-white" />
+                <div>
+                  <Label htmlFor="upi-amount">UPI Amount</Label>
+                  <Input 
+                    id="upi-amount" 
+                    type="number" 
+                    placeholder="Enter UPI amount" 
+                    value={upiAmount || ''}
+                    onChange={(e) => setUpiAmount(parseFloat(e.target.value) || 0)}
+                    className="mt-1"
+                  />
                 </div>
-              </div>
-            )}
-            
-            <div className="pt-2">
-              <div className="flex justify-between font-bold">
-                <span>Total Bill</span>
-                <span>₹{(totalAmount || 0).toFixed(2)}</span>
-              </div>
-              {paymentMethod === 'split' && (
-                <div className="flex justify-between mt-1">
-                  <span>Total Payment</span>
-                  <span>₹{(parseFloat(cashAmount || '0') + parseFloat(upiAmount || '0')).toFixed(2)}</span>
+                
+                <div className="flex justify-between font-medium">
+                  <span>Total Split Amount:</span>
+                  <span>₹{(cashAmount + upiAmount).toFixed(2)}</span>
                 </div>
-              )}
+                
+                {Math.abs((cashAmount + upiAmount) - finalTotal) > 0.01 && (
+                  <p className="text-red-500 text-sm">
+                    Total split amount must equal ₹{finalTotal.toFixed(2)}
+                  </p>
+                )}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Printer Connection</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">
+                  Printer Status: {printerConnected ? (
+                    <span className="text-green-600">Connected</span>
+                  ) : (
+                    <span className="text-red-500">Not Connected</span>
+                  )}
+                </p>
+                <p className="text-sm text-gray-500">Connect to a Bluetooth thermal printer to print receipts</p>
+              </div>
+              <Button 
+                variant={printerConnected ? "outline" : "default"}
+                size="sm"
+                onClick={handleConnectPrinter}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                {printerConnected ? "Reconnect" : "Connect"}
+              </Button>
             </div>
-          </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex flex-col gap-4">
+          <Button 
+            onClick={handlePlaceOrder}
+            disabled={isProcessing}
+            className="w-full"
+          >
+            {isProcessing ? (
+              "Processing..."
+            ) : (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Place Order
+              </>
+            )}
+          </Button>
           
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setPaymentDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleCompletePayment}>
-              Complete Payment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/pos/cart')}
+            disabled={isProcessing}
+          >
+            Back to Cart
+          </Button>
+        </div>
+      </div>
     </Layout>
   );
 };

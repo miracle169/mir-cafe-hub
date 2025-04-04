@@ -108,7 +108,11 @@ const ProductsPage = () => {
                 <DialogHeader>
                   <DialogTitle>{editingItem ? 'Edit Product' : 'Add New Product'}</DialogTitle>
                 </DialogHeader>
-                <AddMenuItem isOpen={true} onClose={handleCloseDialog} />
+                <AddMenuItem 
+                  isOpen={true} 
+                  onClose={handleCloseDialog} 
+                  editItem={editingItem} 
+                />
               </DialogContent>
             </Dialog>
           </div>
@@ -199,7 +203,12 @@ const ProductsPage = () => {
                               variant="outline" 
                               size="sm" 
                               onClick={() => {
-                                // Handle edit category
+                                // TODO: Implement edit category
+                                toast({
+                                  title: "Edit Category",
+                                  description: "Category editing will be available soon",
+                                  duration: 1000,
+                                });
                               }}
                             >
                               <Edit className="h-4 w-4" />

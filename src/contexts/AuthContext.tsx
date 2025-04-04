@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +35,8 @@ interface AuthContextType {
   addStaffMember: (name: string, role: UserRole, password?: string) => void;
   updateStaffMember: (id: string, name: string, role: UserRole, password?: string) => void;
   deleteStaffMember: (id: string) => boolean;
+  checkIn: () => Promise<void>;
+  checkOut: () => Promise<void>;
 }
 
 // Create the context
@@ -92,7 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [staffMembers, setStaffMembers] = useState<StaffMember[]>(defaultStaffMembers);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [session, setSession] = useState<Session | null>(null);
   
   // We need to get the toast from a hook inside the component function
@@ -203,6 +204,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) {
         console.error('Error fetching staff members:', error);
         // Use default staff members for demo
+        setStaffMembers(defaultStaffMembers);
         return;
       }
 
@@ -239,23 +241,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         role: staffMember.role,
       });
 
-      // Create attendance record
-      try {
-        const { error } = await supabase
-          .from('attendance')
-          .insert({
-            staff_id: staffMember.id,
-            date: new Date().toISOString().split('T')[0],
-            check_in_time: new Date().toISOString(),
-          });
-
-        if (error) {
-          console.error('Error creating attendance record:', error);
-        }
-      } catch (error) {
-        console.error('Error creating attendance record:', error);
-      }
-
       // Show success toast
       toast({
         title: "Logged in successfully",
@@ -275,6 +260,91 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return { success: false, error: error.message };
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Check-in function - creates attendance record
+  const checkIn = async () => {
+    if (!currentUser) {
+      toast({
+        title: "Cannot check in",
+        description: "You must be logged in to check in",
+        variant: "destructive",
+        duration: 1000,
+      });
+      return;
+    }
+
+    try {
+      // Create attendance record
+      const { error } = await supabase
+        .from('attendance')
+        .insert({
+          staff_id: currentUser.id,
+          date: new Date().toISOString().split('T')[0],
+          check_in_time: new Date().toISOString(),
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Checked in",
+        description: `You have checked in at ${new Date().toLocaleTimeString()}`,
+        duration: 1000,
+      });
+    } catch (error) {
+      console.error('Error creating attendance record:', error);
+      toast({
+        title: "Check-in failed",
+        description: "Failed to record check-in",
+        variant: "destructive",
+        duration: 1000,
+      });
+    }
+  };
+
+  // Check-out function - updates attendance record
+  const checkOut = async () => {
+    if (!currentUser) {
+      toast({
+        title: "Cannot check out",
+        description: "You must be logged in to check out",
+        variant: "destructive",
+        duration: 1000,
+      });
+      return;
+    }
+
+    try {
+      // Create new check-out record
+      const { error } = await supabase
+        .from('attendance')
+        .insert({
+          staff_id: currentUser.id,
+          date: new Date().toISOString().split('T')[0],
+          check_in_time: new Date().toISOString(),
+          check_out_time: new Date().toISOString(),
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Checked out",
+        description: `You have checked out at ${new Date().toLocaleTimeString()}`,
+        duration: 1000,
+      });
+    } catch (error) {
+      console.error('Error creating checkout record:', error);
+      toast({
+        title: "Check-out failed",
+        description: "Failed to record check-out",
+        variant: "destructive",
+        duration: 1000,
+      });
     }
   };
 
@@ -344,46 +414,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setIsLoading(true);
       
-      // Create attendance checkout record if using staff login
-      if (currentUser && localStorage.getItem('mirCafeStaffLogin')) {
-        try {
-          // Find the latest check-in without a check-out
-          const { data, error } = await supabase
-            .from('attendance')
-            .select('id')
-            .eq('staff_id', currentUser.id)
-            .eq('date', new Date().toISOString().split('T')[0])
-            .is('check_out_time', null)
-            .order('check_in_time', { ascending: false })
-            .limit(1);
-
-          if (error) {
-            console.error('Error finding attendance record:', error);
-          } else if (data && data.length > 0) {
-            // Update the record with checkout time
-            const { error: updateError } = await supabase
-              .from('attendance')
-              .update({
-                check_out_time: new Date().toISOString(),
-              })
-              .eq('id', data[0].id);
-
-            if (updateError) {
-              console.error('Error updating attendance record:', updateError);
-            }
-          }
-        } catch (error) {
-          console.error('Error handling checkout:', error);
-        }
-
-        // Clear staff login from localStorage
-        localStorage.removeItem('mirCafeStaffLogin');
-      }
-      
       // If using Supabase auth
       if (session) {
         await supabase.auth.signOut();
       }
+      
+      // Clear staff login from localStorage
+      localStorage.removeItem('mirCafeStaffLogin');
       
       // Reset state
       setIsAuthenticated(false);
@@ -481,6 +518,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     addStaffMember,
     updateStaffMember,
     deleteStaffMember,
+    checkIn,
+    checkOut,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

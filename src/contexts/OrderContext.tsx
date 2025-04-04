@@ -51,7 +51,8 @@ interface OrderContextType {
     orderType: OrderType,
     tableNumber?: string,
     staffId?: string,
-    staffName?: string
+    staffName?: string,
+    discount?: number
   ) => Promise<Order>;
   updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
   completeOrder: (
@@ -217,15 +218,19 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     orderType: OrderType,
     tableNumber?: string,
     staffId?: string,
-    staffName?: string
+    staffName?: string,
+    discount?: number
   ): Promise<Order> => {
     if (!currentUser) throw new Error('No user logged in');
     
     const now = new Date().toISOString();
-    const totalAmount = items.reduce(
+    const totalBeforeDiscount = items.reduce(
       (total, item) => total + item.price * item.quantity,
       0
     );
+    
+    const finalDiscount = discount || 0;
+    const totalAmount = Math.max(0, totalBeforeDiscount - finalDiscount);
     
     const orderNumber = 'ORD' + Date.now().toString().slice(-6);
     
@@ -240,6 +245,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           customer_id: customer?.id,
           staff_id: staffId || currentUser.id,
           total_amount: totalAmount,
+          discount_amount: finalDiscount,
           status: 'pending',
           order_type: orderType,
           table_number: tableNumber || null,
@@ -289,6 +295,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         staffId: staffId || currentUser.id,
         staffName: staffName || currentUser.name,
         totalAmount,
+        discount: finalDiscount,
         kotPrinted: false,
         billPrinted: false,
       };
