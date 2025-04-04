@@ -1,10 +1,9 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { CartItem } from './CartContext';
 import { Customer } from './CustomerContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 // Order status enum
 export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
@@ -120,10 +119,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         
       if (error) throw error;
       
-      // For simplicity, we're just loading orders without their items for now
-      // In a production app, you would also fetch related order items and customers
       const formattedOrders = await Promise.all(data.map(async (order) => {
-        // Fetch order items
         const { data: itemsData, error: itemsError } = await supabase
           .from('order_items')
           .select(`
@@ -138,7 +134,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           
         if (itemsError) throw itemsError;
         
-        // Fetch customer if customer_id exists
         let customer = null;
         if (order.customer_id) {
           const { data: customerData, error: customerError } = await supabase
@@ -161,7 +156,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           }
         }
         
-        // Fetch staff info
         const { data: staffData, error: staffError } = await supabase
           .from('staff')
           .select('name')
@@ -175,7 +169,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           name: item.menu_items ? (item.menu_items as any).name : 'Unknown Item',
           price: item.price,
           quantity: item.quantity,
-          category: '', // We would need another query to get category name
+          category: '',
         }));
         
         const paymentDetails = order.payment_method ? {
@@ -236,17 +230,19 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const orderNumber = 'ORD' + Date.now().toString().slice(-6);
     
     try {
-      // Insert order into Supabase
+      const newOrderId = crypto.randomUUID();
+      
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert({
+          id: newOrderId,
           order_number: orderNumber,
           customer_id: customer?.id,
           staff_id: staffId || currentUser.id,
           total_amount: totalAmount,
           status: 'pending',
           order_type: orderType,
-          table_number: orderType === 'dine-in' ? tableNumber : null,
+          table_number: tableNumber || null,
           kot_printed: false,
           bill_printed: false,
         })
@@ -255,7 +251,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         
       if (orderError) throw orderError;
       
-      // Insert order items
       const orderItems = items.map(item => ({
         order_id: orderData.id,
         item_id: item.id,
@@ -269,13 +264,12 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         
       if (itemsError) throw itemsError;
       
-      // Update customer visit count and loyalty points if customer exists
       if (customer) {
         const { error: customerError } = await supabase
           .from('customers')
           .update({
             visit_count: customer.visitCount + 1,
-            loyalty_points: customer.loyaltyPoints + Math.floor(totalAmount / 100), // 1 point per 100 spent
+            loyalty_points: customer.loyaltyPoints + Math.floor(totalAmount / 10),
             last_visit: now,
           })
           .eq('id', customer.id);
@@ -283,14 +277,13 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         if (customerError) throw customerError;
       }
       
-      // Create the order object to return
       const newOrder: Order = {
         id: orderData.id,
         items,
         customer,
         status: 'pending',
         type: orderType,
-        tableNumber: orderType === 'dine-in' ? tableNumber : undefined,
+        tableNumber: tableNumber || undefined,
         createdAt: orderData.created_at,
         updatedAt: orderData.updated_at,
         staffId: staffId || currentUser.id,
@@ -300,7 +293,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         billPrinted: false,
       };
       
-      // Update local state
       setOrders((prevOrders) => [newOrder, ...prevOrders]);
       
       return newOrder;
@@ -310,6 +302,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         title: 'Error',
         description: 'Failed to create order',
         variant: 'destructive',
+        duration: 1000,
       });
       throw error;
     }
@@ -386,13 +379,10 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         )
       );
 
-      // Find the completed order
       const completedOrder = orders.find(order => order.id === orderId);
       
-      // Send WhatsApp notification for order completion
       if (completedOrder && completedOrder.customer?.phone) {
         try {
-          // Call the Supabase edge function
           supabase.functions.invoke('send-whatsapp', {
             body: { order: completedOrder }
           }).then(response => {

@@ -1,386 +1,326 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Bluetooth, Printer, Save } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { connectPrinter, disconnectPrinter, isPrinterConnected } from '@/utils/printing';
+import { Printer, Bluetooth, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface PrintSettingsProps {
-  isOwner?: boolean;
+  isOwner: boolean;
 }
 
-const PrintSettings: React.FC<PrintSettingsProps> = ({ isOwner = false }) => {
-  const [printerConnected, setPrinterConnected] = useState(isPrinterConnected);
-  const [connecting, setConnecting] = useState(false);
-  const [showPrinterDialog, setShowPrinterDialog] = useState(false);
-  const [showBillFormatDialog, setShowBillFormatDialog] = useState(false);
-  const [showKotFormatDialog, setShowKotFormatDialog] = useState(false);
-  
-  // Bill format settings
-  const [printLogo, setPrintLogo] = useState(true);
-  const [printAddress, setPrintAddress] = useState(true);
-  const [printCustomerInfo, setPrintCustomerInfo] = useState(true);
-  const [printItemizedDetails, setPrintItemizedDetails] = useState(true);
-  const [printTaxDetails, setPrintTaxDetails] = useState(true);
-  const [printDiscountDetails, setPrintDiscountDetails] = useState(true);
-  const [billFooterMessage, setBillFooterMessage] = useState("Thank you for visiting Mir Cafe! We hope to see you again soon!");
-  
-  // KOT format settings
-  const [printKotTableNumber, setPrintKotTableNumber] = useState(true);
-  const [printKotTime, setPrintKotTime] = useState(true);
-  const [printKotServername, setPrintKotServername] = useState(true);
-  const [kotFooterMessage, setKotFooterMessage] = useState("");
-  
+const PrintSettings: React.FC<PrintSettingsProps> = ({ isOwner }) => {
   const { toast } = useToast();
-
-  const handleSaveBillSettings = () => {
-    // Would typically save to localStorage or backend
-    localStorage.setItem('mirCafePrintSettings', JSON.stringify({
-      bill: {
-        printLogo,
-        printAddress,
-        printCustomerInfo,
-        printItemizedDetails,
-        printTaxDetails,
-        printDiscountDetails,
-        footerMessage: billFooterMessage
+  const [printerConnected, setPrinterConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [billSettings, setBillSettings] = useState({
+    printLogo: true,
+    printAddress: true,
+    printCustomerInfo: true,
+    printItemizedDetails: true,
+    printTaxDetails: true,
+    printDiscountDetails: true,
+    footerMessage: "Thank you for visiting Mir Cafe! We hope to see you again soon!",
+    paperWidth: "58mm", // Standard 2-inch thermal paper width
+  });
+  
+  const [kotSettings, setKotSettings] = useState({
+    printTableNumber: true,
+    printTime: true,
+    printServername: true,
+    footerMessage: "",
+  });
+  
+  // Load settings from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedBillSettings = localStorage.getItem('mirCafePrintSettings');
+      if (savedBillSettings) {
+        setBillSettings(JSON.parse(savedBillSettings).bill || billSettings);
       }
-    }));
-    
-    toast({
-      title: "Settings Saved",
-      description: "Bill print settings have been saved",
-      duration: 1000,
-    });
-    
-    setShowBillFormatDialog(false);
-  };
-
-  const handleSaveKotSettings = () => {
-    // Would typically save to localStorage or backend
-    localStorage.setItem('mirCafeKotSettings', JSON.stringify({
-      kot: {
-        printTableNumber: printKotTableNumber,
-        printTime: printKotTime,
-        printServername: printKotServername,
-        footerMessage: kotFooterMessage
+      
+      const savedKotSettings = localStorage.getItem('mirCafeKotSettings');
+      if (savedKotSettings) {
+        setKotSettings(JSON.parse(savedKotSettings).kot || kotSettings);
       }
-    }));
-    
-    toast({
-      title: "Settings Saved",
-      description: "KOT print settings have been saved",
-      duration: 1000,
-    });
-    
-    setShowKotFormatDialog(false);
-  };
-
+      
+      // Check printer connection status
+      setPrinterConnected(isPrinterConnected());
+    } catch (error) {
+      console.error('Error loading print settings:', error);
+    }
+  }, []);
+  
+  // Save settings to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('mirCafePrintSettings', JSON.stringify({ bill: billSettings }));
+  }, [billSettings]);
+  
+  useEffect(() => {
+    localStorage.setItem('mirCafeKotSettings', JSON.stringify({ kot: kotSettings }));
+  }, [kotSettings]);
+  
+  // Handle printer connection
   const handleConnectPrinter = async () => {
     setConnecting(true);
     try {
-      const connected = await connectPrinter();
-      setPrinterConnected(connected);
+      const success = await connectPrinter();
+      setPrinterConnected(success);
       
-      if (connected) {
+      if (success) {
         toast({
           title: "Printer Connected",
-          description: "Successfully connected to printer",
+          description: "Your Bluetooth printer is now connected and ready to use",
           duration: 1000,
         });
       } else {
         toast({
           title: "Connection Failed",
-          description: "Failed to connect to printer",
-          duration: 1000,
+          description: "Failed to connect to printer. Please try again.",
           variant: "destructive",
+          duration: 1000,
         });
       }
     } catch (error) {
       console.error('Error connecting to printer:', error);
       toast({
-        title: "Connection Error",
-        description: "An error occurred while connecting to printer",
-        duration: 1000,
+        title: "Error",
+        description: "An error occurred while connecting to the printer",
         variant: "destructive",
+        duration: 1000,
       });
     } finally {
       setConnecting(false);
     }
   };
-
+  
+  // Handle printer disconnection
   const handleDisconnectPrinter = () => {
     disconnectPrinter();
     setPrinterConnected(false);
     toast({
       title: "Printer Disconnected",
-      description: "Printer has been disconnected",
+      description: "Your Bluetooth printer has been disconnected",
       duration: 1000,
     });
   };
+  
+  // Update bill settings
+  const updateBillSetting = (key: string, value: boolean | string) => {
+    setBillSettings(prev => ({ ...prev, [key]: value }));
+  };
+  
+  // Update KOT settings
+  const updateKotSetting = (key: string, value: boolean | string) => {
+    setKotSettings(prev => ({ ...prev, [key]: value }));
+  };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Printer Settings</CardTitle>
+          <CardTitle className="flex items-center">
+            <Bluetooth className="mr-2 h-4 w-4" />
+            Bluetooth Printer Connection
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-md font-medium">Bluetooth Printer</h3>
-              <p className="text-sm text-gray-500">Connect to a 2-inch thermal printer</p>
-            </div>
-            <Button 
-              variant="outline" 
-              className={printerConnected ? "bg-green-100" : ""}
-              onClick={() => setShowPrinterDialog(true)}
-            >
-              <Bluetooth className={`h-4 w-4 mr-2 ${printerConnected ? "text-green-600" : ""}`} />
-              {printerConnected ? "Connected" : "Connect"}
-            </Button>
-          </div>
-
-          {isOwner && (
-            <>
-              <div className="pt-2 border-t">
-                <h3 className="text-md font-medium mb-2">Print Format Settings</h3>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setShowBillFormatDialog(true)}
-                    className="flex justify-start"
-                  >
-                    <Printer className="h-4 w-4 mr-2" /> 
-                    Configure Bill Format
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setShowKotFormatDialog(true)}
-                    className="flex justify-start"
-                  >
-                    <Printer className="h-4 w-4 mr-2" /> 
-                    Configure KOT Format
-                  </Button>
-                </div>
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Printer Status</p>
+                <p className="text-sm text-mir-gray-dark">
+                  {printerConnected ? "Connected" : "Not connected"}
+                </p>
               </div>
-            </>
-          )}
+              {printerConnected ? (
+                <Button 
+                  variant="outline" 
+                  onClick={handleDisconnectPrinter}
+                >
+                  Disconnect
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleConnectPrinter}
+                  disabled={connecting}
+                >
+                  <Bluetooth className="mr-2 h-4 w-4" />
+                  {connecting ? "Connecting..." : "Connect Printer"}
+                </Button>
+              )}
+            </div>
+            
+            <div className="bg-mir-gray-light p-3 rounded-md flex items-start mt-2">
+              <Info className="h-4 w-4 text-mir-blue mr-2 mt-0.5" />
+              <p className="text-xs text-mir-gray-dark">
+                Make sure your Bluetooth printer is turned on and in pairing mode. 
+                The app will scan for available Bluetooth printers.
+              </p>
+            </div>
+            
+            <div className="space-y-2 mt-4">
+              <Label htmlFor="paperWidth">Paper Width</Label>
+              <div className="flex space-x-2">
+                <Button 
+                  variant={billSettings.paperWidth === "58mm" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => updateBillSetting('paperWidth', '58mm')}
+                  className="flex-1"
+                >
+                  2 inch (58mm)
+                </Button>
+                <Button 
+                  variant={billSettings.paperWidth === "80mm" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => updateBillSetting('paperWidth', '80mm')}
+                  className="flex-1"
+                >
+                  3 inch (80mm)
+                </Button>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Printer Connection Dialog */}
-      <Dialog open={showPrinterDialog} onOpenChange={setShowPrinterDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Bluetooth Printer</DialogTitle>
-          </DialogHeader>
-          
-          <div className="py-4">
-            <p className="text-sm text-mir-gray-dark mb-4">
-              {printerConnected 
-                ? "Printer is connected and ready to use." 
-                : "Connect to a Bluetooth thermal printer to print receipts and KOTs."}
-            </p>
-            
-            {printerConnected ? (
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={handleDisconnectPrinter}
-              >
-                Disconnect Printer
-              </Button>
-            ) : (
-              <Button
-                className="w-full"
-                onClick={handleConnectPrinter}
-                disabled={connecting}
-              >
-                {connecting ? "Connecting..." : "Connect to Printer"}
-              </Button>
-            )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Bill Format Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="printLogo" className="cursor-pointer">Print Logo/Cafe Name</Label>
+            <Switch 
+              id="printLogo" 
+              checked={billSettings.printLogo}
+              onCheckedChange={(checked) => updateBillSetting('printLogo', checked)}
+            />
           </div>
           
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowPrinterDialog(false)}
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bill Format Dialog */}
-      <Dialog open={showBillFormatDialog} onOpenChange={setShowBillFormatDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Bill Format Settings</DialogTitle>
-          </DialogHeader>
-          
-          <div className="py-4 space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="printLogo" className="cursor-pointer">Print Logo/Header</Label>
-                <Switch 
-                  id="printLogo" 
-                  checked={printLogo} 
-                  onCheckedChange={setPrintLogo} 
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="printAddress" className="cursor-pointer">Print Address/Contact</Label>
-                <Switch 
-                  id="printAddress" 
-                  checked={printAddress} 
-                  onCheckedChange={setPrintAddress} 
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="printCustomerInfo" className="cursor-pointer">Print Customer Information</Label>
-                <Switch 
-                  id="printCustomerInfo" 
-                  checked={printCustomerInfo} 
-                  onCheckedChange={setPrintCustomerInfo} 
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="printItemizedDetails" className="cursor-pointer">Print Itemized Details</Label>
-                <Switch 
-                  id="printItemizedDetails" 
-                  checked={printItemizedDetails} 
-                  onCheckedChange={setPrintItemizedDetails} 
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="printTaxDetails" className="cursor-pointer">Print Tax Details</Label>
-                <Switch 
-                  id="printTaxDetails" 
-                  checked={printTaxDetails} 
-                  onCheckedChange={setPrintTaxDetails} 
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="printDiscountDetails" className="cursor-pointer">Print Discount Details</Label>
-                <Switch 
-                  id="printDiscountDetails" 
-                  checked={printDiscountDetails} 
-                  onCheckedChange={setPrintDiscountDetails} 
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="billFooter">Footer Message</Label>
-              <Textarea 
-                id="billFooter" 
-                value={billFooterMessage} 
-                onChange={(e) => setBillFooterMessage(e.target.value)}
-                placeholder="Thank you message at the bottom of the bill"
-                rows={3}
-              />
-            </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="printAddress" className="cursor-pointer">Print Cafe Address</Label>
+            <Switch 
+              id="printAddress" 
+              checked={billSettings.printAddress}
+              onCheckedChange={(checked) => updateBillSetting('printAddress', checked)}
+            />
           </div>
           
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowBillFormatDialog(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveBillSettings}
-              className="ml-2"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              Save Settings
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* KOT Format Dialog */}
-      <Dialog open={showKotFormatDialog} onOpenChange={setShowKotFormatDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>KOT Format Settings</DialogTitle>
-          </DialogHeader>
-          
-          <div className="py-4 space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="printKotTableNumber" className="cursor-pointer">Print Table Number</Label>
-                <Switch 
-                  id="printKotTableNumber" 
-                  checked={printKotTableNumber} 
-                  onCheckedChange={setPrintKotTableNumber} 
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="printKotTime" className="cursor-pointer">Print Time</Label>
-                <Switch 
-                  id="printKotTime" 
-                  checked={printKotTime} 
-                  onCheckedChange={setPrintKotTime} 
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="printKotServername" className="cursor-pointer">Print Server Name</Label>
-                <Switch 
-                  id="printKotServername" 
-                  checked={printKotServername} 
-                  onCheckedChange={setPrintKotServername} 
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="kotFooter">Footer Message</Label>
-              <Textarea 
-                id="kotFooter" 
-                value={kotFooterMessage} 
-                onChange={(e) => setKotFooterMessage(e.target.value)}
-                placeholder="Optional note at the bottom of KOT"
-                rows={3}
-              />
-            </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="printCustomerInfo" className="cursor-pointer">Print Customer Info</Label>
+            <Switch 
+              id="printCustomerInfo" 
+              checked={billSettings.printCustomerInfo}
+              onCheckedChange={(checked) => updateBillSetting('printCustomerInfo', checked)}
+            />
           </div>
           
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowKotFormatDialog(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveKotSettings}
-              className="ml-2"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              Save Settings
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="printItemizedDetails" className="cursor-pointer">Print Itemized Details</Label>
+            <Switch 
+              id="printItemizedDetails" 
+              checked={billSettings.printItemizedDetails}
+              onCheckedChange={(checked) => updateBillSetting('printItemizedDetails', checked)}
+            />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <Label htmlFor="printTaxDetails" className="cursor-pointer">Print Tax Details</Label>
+            <Switch 
+              id="printTaxDetails" 
+              checked={billSettings.printTaxDetails}
+              onCheckedChange={(checked) => updateBillSetting('printTaxDetails', checked)}
+            />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <Label htmlFor="printDiscountDetails" className="cursor-pointer">Print Discount Details</Label>
+            <Switch 
+              id="printDiscountDetails" 
+              checked={billSettings.printDiscountDetails}
+              onCheckedChange={(checked) => updateBillSetting('printDiscountDetails', checked)}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="billFooter">Bill Footer Message</Label>
+            <Textarea 
+              id="billFooter" 
+              value={billSettings.footerMessage}
+              onChange={(e) => updateBillSetting('footerMessage', e.target.value)}
+              rows={2}
+              placeholder="Enter footer message to appear on bills"
+            />
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>KOT Format Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="printTableNumber" className="cursor-pointer">Print Table Number</Label>
+            <Switch 
+              id="printTableNumber" 
+              checked={kotSettings.printTableNumber}
+              onCheckedChange={(checked) => updateKotSetting('printTableNumber', checked)}
+            />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <Label htmlFor="printTime" className="cursor-pointer">Print Time & Date</Label>
+            <Switch 
+              id="printTime" 
+              checked={kotSettings.printTime}
+              onCheckedChange={(checked) => updateKotSetting('printTime', checked)}
+            />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <Label htmlFor="printServername" className="cursor-pointer">Print Server Name</Label>
+            <Switch 
+              id="printServername" 
+              checked={kotSettings.printServername}
+              onCheckedChange={(checked) => updateKotSetting('printServername', checked)}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="kotFooter">KOT Footer Message</Label>
+            <Textarea 
+              id="kotFooter" 
+              value={kotSettings.footerMessage}
+              onChange={(e) => updateKotSetting('footerMessage', e.target.value)}
+              rows={2}
+              placeholder="Enter footer message to appear on KOTs"
+            />
+          </div>
+        </CardContent>
+      </Card>
+      
+      <div className="text-center">
+        <Button 
+          onClick={() => {
+            toast({
+              title: "Settings Saved",
+              description: "Print settings have been updated successfully",
+              duration: 1000,
+            });
+          }}
+          className="bg-mir-red hover:bg-mir-red/90"
+        >
+          <Printer className="mr-2 h-4 w-4" />
+          Save Print Settings
+        </Button>
+      </div>
     </div>
   );
 };

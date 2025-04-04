@@ -1,322 +1,167 @@
 
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
 import { useOrder } from '@/contexts/OrderContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Search, Printer, Calendar, Bluetooth } from 'lucide-react';
-import { formatDistanceToNow, format, isToday } from 'date-fns';
-import { connectPrinter, printBill, disconnectPrinter, isPrinterConnected } from '@/utils/printing';
+import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { format } from 'date-fns';
+import { DatePicker } from '@/components/ui/date-picker';
+import { Label } from '@/components/ui/label';
+import { Search, FileText, Printer } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
+import { printBill } from '@/utils/printing';
 
 const ReceiptsPage = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredOrders, setFilteredOrders] = useState<any[]>([]);
-  const [showPrinterDialog, setShowPrinterDialog] = useState(false);
-  const [printerConnected, setPrinterConnected] = useState(false);
-  const [connecting, setConnecting] = useState(false);
   const { orders, syncOrders } = useOrder();
+  const { currentUser } = useAuth();
   const { toast } = useToast();
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Sync orders when the page loads
   useEffect(() => {
+    // Sync orders when the component mounts
     syncOrders();
-    // Check if printer is already connected
-    setPrinterConnected(isPrinterConnected());
   }, []);
 
-  // Filter completed orders only
-  useEffect(() => {
-    const completedOrders = orders.filter(
-      (order) => order.status === 'completed'
+  // Filter orders for the selected date
+  const filteredOrders = orders.filter((order) => {
+    const orderDate = new Date(order.createdAt);
+    return (
+      orderDate.toDateString() === selectedDate.toDateString() &&
+      (searchQuery === '' ||
+        order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.customer?.name?.toLowerCase().includes(searchQuery.toLowerCase()))
     );
-    
-    if (searchQuery) {
-      setFilteredOrders(
-        completedOrders.filter(
-          (order) =>
-            order.customer?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            order.customer?.phone?.includes(searchQuery) ||
-            order.id.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      );
-    } else {
-      setFilteredOrders(completedOrders);
-    }
-  }, [orders, searchQuery]);
+  });
 
-  const handlePrintReceipt = async (orderId: string) => {
-    if (!printerConnected) {
-      toast({
-        title: "Printer Not Connected",
-        description: "Please connect to a printer first",
-        duration: 1000,
-      });
-      setShowPrinterDialog(true);
-      return;
-    }
-
-    const order = orders.find(o => o.id === orderId);
-    if (!order) return;
-
-    toast({
-      title: "Printing Receipt",
-      description: "Sending to printer...",
-      duration: 1000,
-    });
-
+  const handlePrintReceipt = async (order) => {
     try {
-      const success = await printBill(order);
-      if (success) {
-        toast({
-          title: "Receipt Printed",
-          description: "The receipt has been sent to the printer",
-          duration: 1000,
-        });
-      } else {
-        toast({
-          title: "Print Failed",
-          description: "Failed to print receipt",
-          duration: 1000,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error printing receipt:', error);
+      await printBill(order);
       toast({
-        title: "Print Error",
-        description: "An error occurred while printing",
+        title: 'Receipt Printed',
+        description: `Receipt for Order #${order.id.slice(0, 5)} printed successfully`,
         duration: 1000,
-        variant: "destructive",
+      });
+    } catch (error) {
+      toast({
+        title: 'Print Failed',
+        description: 'Failed to print receipt. Check printer connection.',
+        variant: 'destructive',
+        duration: 1000,
       });
     }
-  };
-
-  const handleConnectPrinter = async () => {
-    setConnecting(true);
-    try {
-      const connected = await connectPrinter();
-      setPrinterConnected(connected);
-      
-      if (connected) {
-        toast({
-          title: "Printer Connected",
-          description: "Successfully connected to printer",
-          duration: 1000,
-        });
-      } else {
-        toast({
-          title: "Connection Failed",
-          description: "Failed to connect to printer",
-          duration: 1000,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error connecting to printer:', error);
-      toast({
-        title: "Connection Error",
-        description: "An error occurred while connecting to printer",
-        duration: 1000,
-        variant: "destructive",
-      });
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  const handleDisconnectPrinter = () => {
-    disconnectPrinter();
-    setPrinterConnected(false);
-    toast({
-      title: "Printer Disconnected",
-      description: "Printer has been disconnected",
-      duration: 1000,
-    });
   };
 
   return (
-    <Layout title="Receipts" showBackButton>
-      <div className="mir-container">
-        <div className="mb-4 flex justify-between items-center">
-          <div className="relative flex-1 mr-2">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Search receipts by customer or order ID"
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+    <Layout title="Receipts">
+      <div className="p-4 max-w-6xl mx-auto">
+        <div className="flex flex-col md:flex-row items-center gap-4 mb-6">
+          <div className="flex-1 w-full">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+              <Input
+                type="search"
+                placeholder="Search orders or customers..."
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
+          
+          <div className="flex flex-col md:flex-row items-center gap-2">
+            <Label htmlFor="date" className="md:mr-2">Date:</Label>
+            <DatePicker date={selectedDate} setDate={setSelectedDate} />
+          </div>
+          
           <Button 
-            variant="outline" 
-            size="icon"
-            className={printerConnected ? "bg-green-100" : ""}
-            onClick={() => setShowPrinterDialog(true)}
+            onClick={() => syncOrders()}
+            variant="outline"
+            size="sm"
           >
-            <Bluetooth className={`h-4 w-4 ${printerConnected ? "text-green-600" : ""}`} />
+            Refresh
           </Button>
         </div>
 
-        <div className="mb-4">
-          <h3 className="font-medium text-lg">Today's Receipts</h3>
-          {filteredOrders.filter(order => 
-            isToday(new Date(order.completedAt || order.createdAt))
-          ).length === 0 ? (
-            <div className="text-center py-4">
-              <p className="text-gray-500">No receipts found for today</p>
-            </div>
-          ) : (
-            <div className="space-y-3 mt-2">
-              {filteredOrders
-                .filter(order => isToday(new Date(order.completedAt || order.createdAt)))
-                .map((order) => (
-                  <Card key={order.id} className="overflow-hidden">
-                    <CardContent className="p-0">
-                      <div className="bg-white p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h3 className="font-semibold text-mir-black">
-                              Order #{order.id.slice(0, 6)}
-                            </h3>
-                            <p className="text-sm text-mir-gray-dark">
-                              {order.customer?.name || 'Guest'}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold">₹{order.totalAmount.toFixed(2)}</p>
-                            <p className="text-xs text-mir-gray-dark">
-                              {format(new Date(order.completedAt || order.createdAt), 'h:mm a')}
-                            </p>
-                          </div>
+        {filteredOrders.length > 0 ? (
+          <div className="space-y-4">
+            {filteredOrders.map((order) => (
+              <Card key={order.id} className="overflow-hidden">
+                <CardHeader className="bg-mir-gray-light p-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle className="text-base">
+                        Order #{order.id.slice(0, 5)}
+                      </CardTitle>
+                      <p className="text-sm text-mir-gray-dark">
+                        {format(new Date(order.createdAt), 'MMM dd, yyyy - hh:mm a')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={order.status === 'completed' ? 'default' : 'outline'}>
+                        {order.status}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handlePrintReceipt(order)}
+                        title="Print Receipt"
+                      >
+                        <Printer className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-mir-gray-dark">Customer</p>
+                      <p className="font-medium">{order.customer?.name || 'Guest'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-mir-gray-dark">Staff</p>
+                      <p className="font-medium">{order.staffName}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-mir-gray-dark">Type</p>
+                      <p className="font-medium capitalize">{order.type}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-mir-gray-dark">Amount</p>
+                      <p className="font-medium">₹{order.totalAmount.toFixed(2)}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-xs text-mir-gray-dark mb-2">Items</p>
+                    <div className="space-y-1 text-sm">
+                      {order.items.map((item, index) => (
+                        <div key={index} className="flex justify-between">
+                          <span>
+                            {item.quantity}x {item.name}
+                          </span>
+                          <span>₹{(item.price * item.quantity).toFixed(2)}</span>
                         </div>
-                        
-                        <div className="mt-3 text-xs text-mir-gray-dark">
-                          <p><span className="font-medium">Items:</span> {order.items.length}</p>
-                          <p><span className="font-medium">Payment:</span> {order.paymentDetails?.method || 'N/A'}</p>
-                        </div>
-                        
-                        <div className="mt-3 flex justify-end">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="flex items-center"
-                            onClick={() => handlePrintReceipt(order.id)}
-                          >
-                            <Printer className="h-4 w-4 mr-1" /> Print
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h3 className="font-medium text-lg mb-2">Previous Receipts</h3>
-          {filteredOrders.filter(order => 
-            !isToday(new Date(order.completedAt || order.createdAt))
-          ).length === 0 ? (
-            <div className="text-center py-4">
-              <p className="text-gray-500">No previous receipts found</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredOrders
-                .filter(order => !isToday(new Date(order.completedAt || order.createdAt)))
-                .map((order) => (
-                  <Card key={order.id} className="overflow-hidden">
-                    <CardContent className="p-0">
-                      <div className="bg-white p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h3 className="font-semibold text-mir-black">
-                              Order #{order.id.slice(0, 6)}
-                            </h3>
-                            <p className="text-sm text-mir-gray-dark">
-                              {order.customer?.name || 'Guest'}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold">₹{order.totalAmount.toFixed(2)}</p>
-                            <p className="text-xs text-mir-gray-dark flex items-center">
-                              <Calendar className="h-3 w-3 mr-1" />
-                              {formatDistanceToNow(new Date(order.completedAt || order.createdAt), { addSuffix: true })}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="mt-3 text-xs text-mir-gray-dark">
-                          <p><span className="font-medium">Items:</span> {order.items.length}</p>
-                          <p><span className="font-medium">Payment:</span> {order.paymentDetails?.method || 'N/A'}</p>
-                        </div>
-                        
-                        <div className="mt-3 flex justify-end">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="flex items-center"
-                            onClick={() => handlePrintReceipt(order.id)}
-                          >
-                            <Printer className="h-4 w-4 mr-1" /> Print
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <Dialog open={showPrinterDialog} onOpenChange={setShowPrinterDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Bluetooth Printer</DialogTitle>
-          </DialogHeader>
-          
-          <div className="py-4">
-            <p className="text-sm text-mir-gray-dark mb-4">
-              {printerConnected 
-                ? "Printer is connected and ready to use." 
-                : "Connect to a Bluetooth thermal printer to print receipts and KOTs."}
-            </p>
-            
-            {printerConnected ? (
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={handleDisconnectPrinter}
-              >
-                Disconnect Printer
-              </Button>
-            ) : (
-              <Button
-                className="w-full"
-                onClick={handleConnectPrinter}
-                disabled={connecting}
-              >
-                {connecting ? "Connecting..." : "Connect to Printer"}
-              </Button>
-            )}
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-          
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowPrinterDialog(false)}
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        ) : (
+          <div className="text-center py-8">
+            <FileText className="h-12 w-12 text-mir-gray mx-auto mb-4" />
+            <h3 className="text-lg font-medium">No receipts found</h3>
+            <p className="text-mir-gray-dark">
+              There are no receipts for {format(selectedDate, 'MMMM dd, yyyy')}
+            </p>
+          </div>
+        )}
+      </div>
     </Layout>
   );
 };

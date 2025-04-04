@@ -19,6 +19,7 @@ export interface StaffMember {
   id: string;
   name: string;
   role: UserRole;
+  password?: string; // Added for staff login
 }
 
 // Auth context type
@@ -29,10 +30,11 @@ interface AuthContextType {
   staffMembers: StaffMember[];
   isOwner: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  staffLogin: (name: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   hasPermission: (requiredRole: UserRole) => boolean;
-  addStaffMember: (name: string, role: UserRole) => void;
-  updateStaffMember: (id: string, name: string, role: UserRole) => void;
+  addStaffMember: (name: string, role: UserRole, password?: string) => void;
+  updateStaffMember: (id: string, name: string, role: UserRole, password?: string) => void;
   deleteStaffMember: (id: string) => boolean;
 }
 
@@ -63,21 +65,25 @@ const defaultStaffMembers: StaffMember[] = [
     id: '1',
     name: 'Café Owner',
     role: 'owner',
+    password: 'owner123',
   },
   {
     id: '2',
     name: 'Café Staff',
     role: 'staff',
+    password: 'staff123',
   },
   {
     id: '3',
     name: 'John Barista',
     role: 'staff',
+    password: 'john123',
   },
   {
     id: '4',
     name: 'Mary Server',
     role: 'staff',
+    password: 'mary123',
   }
 ];
 
@@ -128,6 +134,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Fetch staff members
     fetchStaffMembers();
 
+    // Check for stored staff login
+    const storedStaff = localStorage.getItem('mirCafeStaffLogin');
+    if (storedStaff) {
+      try {
+        const staffData = JSON.parse(storedStaff);
+        setCurrentUser({
+          id: staffData.id,
+          name: staffData.name,
+          role: staffData.role,
+        });
+        setIsAuthenticated(true);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error parsing stored staff login:', error);
+        localStorage.removeItem('mirCafeStaffLogin');
+      }
+    }
+
     return () => {
       subscription.unsubscribe();
     };
@@ -173,7 +197,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data, error } = await supabase
         .from('staff')
-        .select('id, name, role')
+        .select('id, name, role, password')
         .order('name');
 
       if (error) {
@@ -190,7 +214,71 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Login function
+  // Staff login function - uses name and password
+  const staffLogin = async (name: string, password: string) => {
+    try {
+      setIsLoading(true);
+
+      // Find staff member by name and password
+      const staffMember = staffMembers.find(
+        (staff) => staff.name === name && staff.password === password
+      );
+
+      if (!staffMember) {
+        throw new Error('Invalid name or password');
+      }
+
+      // Store staff login in localStorage
+      localStorage.setItem('mirCafeStaffLogin', JSON.stringify(staffMember));
+
+      // Set authentication state
+      setIsAuthenticated(true);
+      setCurrentUser({
+        id: staffMember.id,
+        name: staffMember.name,
+        role: staffMember.role,
+      });
+
+      // Create attendance record
+      try {
+        const { error } = await supabase
+          .from('attendance')
+          .insert({
+            staff_id: staffMember.id,
+            date: new Date().toISOString().split('T')[0],
+            check_in_time: new Date().toISOString(),
+          });
+
+        if (error) {
+          console.error('Error creating attendance record:', error);
+        }
+      } catch (error) {
+        console.error('Error creating attendance record:', error);
+      }
+
+      // Show success toast
+      toast({
+        title: "Logged in successfully",
+        description: `Welcome back, ${staffMember.name}!`,
+        duration: 1000,
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Staff login error:', error);
+      toast({
+        title: "Login failed",
+        description: error.message || "Invalid name or password",
+        variant: "destructive",
+        duration: 1000,
+      });
+      return { success: false, error: error.message };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Login function for Supabase auth
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
@@ -233,6 +321,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast({
         title: "Logged in successfully",
         description: `Welcome back, ${user.name}!`,
+        duration: 1000,
       });
 
       return { success: true };
@@ -242,6 +331,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         title: "Login failed",
         description: error.message || "Invalid email or password",
         variant: "destructive",
+        duration: 1000,
       });
       return { success: false, error: error.message };
     } finally {
@@ -253,6 +343,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     try {
       setIsLoading(true);
+      
+      // Create attendance checkout record if using staff login
+      if (currentUser && localStorage.getItem('mirCafeStaffLogin')) {
+        try {
+          // Find the latest check-in without a check-out
+          const { data, error } = await supabase
+            .from('attendance')
+            .select('id')
+            .eq('staff_id', currentUser.id)
+            .eq('date', new Date().toISOString().split('T')[0])
+            .is('check_out_time', null)
+            .order('check_in_time', { ascending: false })
+            .limit(1);
+
+          if (error) {
+            console.error('Error finding attendance record:', error);
+          } else if (data && data.length > 0) {
+            // Update the record with checkout time
+            const { error: updateError } = await supabase
+              .from('attendance')
+              .update({
+                check_out_time: new Date().toISOString(),
+              })
+              .eq('id', data[0].id);
+
+            if (updateError) {
+              console.error('Error updating attendance record:', updateError);
+            }
+          }
+        } catch (error) {
+          console.error('Error handling checkout:', error);
+        }
+
+        // Clear staff login from localStorage
+        localStorage.removeItem('mirCafeStaffLogin');
+      }
       
       // If using Supabase auth
       if (session) {
@@ -266,6 +392,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast({
         title: "Logged out",
         description: "You have been logged out successfully",
+        duration: 1000,
       });
     } catch (error) {
       console.error('Logout error:', error);
@@ -273,6 +400,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         title: "Logout failed",
         description: error.message,
         variant: "destructive",
+        duration: 1000,
       });
     } finally {
       setIsLoading(false);
@@ -291,12 +419,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Staff management functions
-  const addStaffMember = (name: string, role: UserRole) => {
+  const addStaffMember = (name: string, role: UserRole, password?: string) => {
     // In a real app, you would save to the database here
     const newStaff: StaffMember = {
       id: `temp-${Date.now()}`, // In real app, this would be generated by the database
       name,
       role,
+      password: password || '',
     };
     
     setStaffMembers([...staffMembers, newStaff]);
@@ -305,11 +434,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // and then update the local state with the returned data
   };
 
-  const updateStaffMember = (id: string, name: string, role: UserRole) => {
+  const updateStaffMember = (id: string, name: string, role: UserRole, password?: string) => {
     // In a real app, you would update the database here
     setStaffMembers(
       staffMembers.map(staff =>
-        staff.id === id ? { ...staff, name, role } : staff
+        staff.id === id 
+          ? { 
+              ...staff, 
+              name, 
+              role, 
+              ...(password ? { password } : {})
+            } 
+          : staff
       )
     );
     
@@ -339,6 +475,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     staffMembers,
     isOwner,
     login,
+    staffLogin,
     logout,
     hasPermission,
     addStaffMember,
