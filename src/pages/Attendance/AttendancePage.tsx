@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
 const AttendancePage = () => {
-  const { entries, checkIn, checkOut, getEntriesByDate } = useAttendance();
+  const { attendanceRecords, checkIn, checkOut, getAttendanceForDate } = useAttendance();
   const { currentUser, staffMembers = [] } = useAuth(); // Provide a default empty array
   const { toast } = useToast();
   const [date, setDate] = useState<string>(
@@ -22,9 +22,9 @@ const AttendancePage = () => {
   const [activeTab, setActiveTab] = useState<string>('today');
 
   useEffect(() => {
-    const filteredEntries = getEntriesByDate(date);
+    const filteredEntries = getAttendanceForDate(date);
     setTodayEntries(filteredEntries);
-  }, [date, entries, getEntriesByDate]);
+  }, [date, attendanceRecords, getAttendanceForDate]);
 
   const handleCheckIn = (staffId: string) => {
     try {
@@ -144,7 +144,7 @@ const AttendancePage = () => {
                             <Button 
                               size="sm" 
                               className="bg-mir-red text-white"
-                              onClick={() => handleCheckIn(staff.id, staff.name)}
+                              onClick={() => handleCheckIn(staff.id)}
                             >
                               <LogIn className="h-4 w-4 mr-1" />
                               Check In
@@ -155,7 +155,7 @@ const AttendancePage = () => {
                             <Button 
                               size="sm" 
                               variant="outline"
-                              onClick={() => handleCheckOut(staff.id, staff.name)}
+                              onClick={() => handleCheckOut(staff.id)}
                             >
                               <LogOut className="h-4 w-4 mr-1" />
                               Check Out
