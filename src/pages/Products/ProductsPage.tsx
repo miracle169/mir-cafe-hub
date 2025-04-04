@@ -10,11 +10,11 @@ import { Search, Plus, Edit, Trash2, Tag } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AddMenuItem } from '@/components/Menu/AddMenuItem';
+import AddMenuItem from '@/components/Menu/AddMenuItem';
 import { useToast } from '@/hooks/use-toast';
 
 const ProductsPage = () => {
-  const { items: menuItems = [], categories = [], isLoading, addItem, updateItem, deleteItem } = useMenu();
+  const { items: menuItems = [], categories = [], isLoading, addItem, updateItem, deleteItem, deleteCategory } = useMenu();
   const { items: inventoryItems = [] } = useInventory();
   const { toast } = useToast();
   
@@ -108,7 +108,7 @@ const ProductsPage = () => {
                 <DialogHeader>
                   <DialogTitle>{editingItem ? 'Edit Product' : 'Add New Product'}</DialogTitle>
                 </DialogHeader>
-                <AddMenuItem setOpen={handleCloseDialog} />
+                <AddMenuItem isOpen={true} onClose={handleCloseDialog} />
               </DialogContent>
             </Dialog>
           </div>
