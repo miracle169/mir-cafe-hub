@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -21,13 +20,11 @@ const AttendancePage = () => {
   const [todayEntries, setTodayEntries] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<string>('today');
 
-  // Update today's entries when date or entries change
   useEffect(() => {
     const filteredEntries = getEntriesByDate(date);
     setTodayEntries(filteredEntries);
   }, [date, entries, getEntriesByDate]);
 
-  // Handle check in
   const handleCheckIn = (staffId: string, staffName: string) => {
     try {
       checkIn(staffId, staffName);
@@ -44,7 +41,6 @@ const AttendancePage = () => {
     }
   };
 
-  // Handle check out
   const handleCheckOut = (staffId: string, staffName: string) => {
     try {
       checkOut(staffId);
@@ -61,30 +57,25 @@ const AttendancePage = () => {
     }
   };
 
-  // Check if a staff member is checked in for the day
   const isCheckedIn = (staffId: string) => {
     return todayEntries.some(
       (entry) => entry.staffId === staffId && !entry.checkOutTime
     );
   };
 
-  // Check if a staff member is checked out for the day
   const isCheckedOut = (staffId: string) => {
     return todayEntries.some(
       (entry) => entry.staffId === staffId && entry.checkOutTime
     );
   };
 
-  // Handle date change
   const handleDateChange = (newDate: string) => {
     setDate(newDate);
   };
 
-  // Get current date
   const today = new Date().toISOString().split('T')[0];
   const isToday = date === today;
 
-  // If no staff members are available, show a message
   if (!staffMembers || staffMembers.length === 0) {
     return (
       <Layout title="Attendance" showBackButton>
