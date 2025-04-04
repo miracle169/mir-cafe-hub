@@ -38,16 +38,17 @@ import ProductsPage from "./pages/Products/ProductsPage";
 
 const queryClient = new QueryClient();
 
+// Ensuring correct provider nesting order to avoid dependency issues
 const App = () => (
   <BrowserRouter>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AttendanceProvider>
-          <MenuProvider>
-            <InventoryProvider>
+        <MenuProvider>
+          <InventoryProvider>
+            <AttendanceProvider>
               <CustomerProvider>
-                <CartProvider>
-                  <OrderProvider>
+                <OrderProvider>
+                  <CartProvider>
                     <TooltipProvider>
                       <Toaster />
                       <Sonner />
@@ -75,12 +76,12 @@ const App = () => (
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </TooltipProvider>
-                  </OrderProvider>
-                </CartProvider>
+                  </CartProvider>
+                </OrderProvider>
               </CustomerProvider>
-            </InventoryProvider>
-          </MenuProvider>
-        </AttendanceProvider>
+            </AttendanceProvider>
+          </InventoryProvider>
+        </MenuProvider>
       </AuthProvider>
     </QueryClientProvider>
   </BrowserRouter>
