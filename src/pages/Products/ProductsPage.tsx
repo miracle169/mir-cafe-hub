@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useMenu } from '@/contexts/MenuContext';
@@ -5,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { PlusCircle, Edit, Trash, ChevronRight } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import AddMenuItem from '@/components/Menu/AddMenuItem';
@@ -36,7 +38,7 @@ const ProductsPage = () => {
   // Handle updating a category
   const handleUpdateCategory = () => {
     if (editCategoryId && newCategoryName.trim()) {
-      updateCategory(editCategoryId, { name: newCategoryName.trim() });
+      updateCategory({ id: editCategoryId, name: newCategoryName.trim() });
       setEditCategoryId(null);
       setNewCategoryName('');
       toast({
@@ -163,7 +165,7 @@ const ProductsPage = () => {
             <div className="space-y-6">
               {categories.map((category) => {
                 const categoryItems = menuItems.filter(
-                  (item) => item.categoryId === category.id
+                  (item) => item.category === category.id
                 );
 
                 if (categoryItems.length === 0) return null;
@@ -228,8 +230,9 @@ const ProductsPage = () => {
         {/* Add/Edit Menu Item Dialog */}
         {isAddMenuItemOpen && (
           <AddMenuItem 
-            onClose={closeMenuItemDialog} 
             isOpen={true}
+            onClose={closeMenuItemDialog}
+            initialValues={itemToEdit}
             key={itemToEdit ? `edit-${itemToEdit.id}` : 'add-new'}
           />
         )}

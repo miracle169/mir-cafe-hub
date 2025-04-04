@@ -45,6 +45,8 @@ interface MenuContextType {
   bulkAddItems: (items: Omit<MenuItem, 'id'>[]) => void;
   bulkAddCategories: (categories: Omit<MenuCategory, 'id'>[]) => void;
   isLoading: boolean;
+  removeCategory: (id: string) => void;
+  removeMenuItem: (id: string) => void;
 }
 
 // Create the context
@@ -170,6 +172,9 @@ export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Delete a menu item (alias for backward compatibility)
   const deleteMenuItem = deleteItem;
+  
+  // Alias for deleteItem for compatibility with new code
+  const removeMenuItem = deleteItem;
 
   // Add a new category
   const addCategory = (newCategoryData: Omit<MenuCategory, 'id'>) => {
@@ -196,6 +201,9 @@ export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       prevCategories.filter((category) => category.id !== id)
     );
   };
+  
+  // Alias for deleteCategory for compatibility with new code
+  const removeCategory = deleteCategory;
 
   // Get item by ID
   const getItemById = (id: string) => {
@@ -246,6 +254,8 @@ export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     bulkAddItems,
     bulkAddCategories,
     isLoading,
+    removeCategory,
+    removeMenuItem,
   };
 
   return <MenuContext.Provider value={value}>{children}</MenuContext.Provider>;

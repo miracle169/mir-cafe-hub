@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -25,34 +26,38 @@ const AttendancePage = () => {
     setTodayEntries(filteredEntries);
   }, [date, entries, getEntriesByDate]);
 
-  const handleCheckIn = (staffId: string, staffName: string) => {
+  const handleCheckIn = (staffId: string) => {
     try {
-      checkIn(staffId, staffName);
+      checkIn(staffId);
       toast({
         title: "Checked In",
-        description: `${staffName} has been checked in successfully`,
+        description: `Staff member has been checked in successfully`,
+        duration: 1000,
       });
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to check in",
         variant: "destructive",
+        duration: 1000,
       });
     }
   };
 
-  const handleCheckOut = (staffId: string, staffName: string) => {
+  const handleCheckOut = (staffId: string) => {
     try {
       checkOut(staffId);
       toast({
         title: "Checked Out",
-        description: `${staffName} has been checked out successfully`,
+        description: `Staff member has been checked out successfully`,
+        duration: 1000,
       });
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to check out",
         variant: "destructive",
+        duration: 1000,
       });
     }
   };

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -84,6 +83,7 @@ const CashDrawerPage = () => {
         title: "Error",
         description: "Please enter a valid opening amount",
         variant: "destructive",
+        duration: 1000,
       });
       return;
     }
@@ -99,6 +99,7 @@ const CashDrawerPage = () => {
       toast({
         title: "Success",
         description: "Opening cash registered successfully",
+        duration: 1000,
       });
       
       // Update the local state
@@ -109,6 +110,7 @@ const CashDrawerPage = () => {
         title: "Error",
         description: "Failed to register opening cash",
         variant: "destructive",
+        duration: 1000,
       });
     }
   };
@@ -122,6 +124,7 @@ const CashDrawerPage = () => {
         title: "Error",
         description: "Please enter a valid closing amount",
         variant: "destructive",
+        duration: 1000,
       });
       return;
     }
@@ -135,6 +138,7 @@ const CashDrawerPage = () => {
       toast({
         title: "Success",
         description: "Closing cash registered successfully",
+        duration: 1000,
       });
       
       // Update the local state
@@ -145,6 +149,7 @@ const CashDrawerPage = () => {
         title: "Error",
         description: "Failed to register closing cash",
         variant: "destructive",
+        duration: 1000,
       });
     }
   };
