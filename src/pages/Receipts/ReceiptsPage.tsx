@@ -7,13 +7,18 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useOrder } from '@/contexts/OrderContext';
 import { Search, Printer, Calendar } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format, isToday } from 'date-fns';
 
 const ReceiptsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredOrders, setFilteredOrders] = useState<any[]>([]);
-  const { orders } = useOrder();
+  const { orders, syncOrders } = useOrder();
   const { toast } = useToast();
+
+  // Sync orders when the page loads
+  useEffect(() => {
+    syncOrders();
+  }, []);
 
   // Filter completed orders only
   useEffect(() => {
@@ -39,6 +44,7 @@ const ReceiptsPage = () => {
     toast({
       title: "Receipt Printed",
       description: "The receipt has been sent to the printer",
+      duration: 2000, // Set toast duration to 2 seconds
     });
   };
 
@@ -58,55 +64,118 @@ const ReceiptsPage = () => {
           </div>
         </div>
 
-        {filteredOrders.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-500">No receipts found</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredOrders.map((order) => (
-              <Card key={order.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="bg-white p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h3 className="font-semibold text-mir-black">
-                          Order #{order.id.slice(0, 6)}
-                        </h3>
-                        <p className="text-sm text-mir-gray-dark">
-                          {order.customer?.name || 'Guest'}
-                        </p>
+        <div className="mb-4">
+          <h3 className="font-medium text-lg">Today's Receipts</h3>
+          {filteredOrders.filter(order => 
+            isToday(new Date(order.completedAt || order.createdAt))
+          ).length === 0 ? (
+            <div className="text-center py-4">
+              <p className="text-gray-500">No receipts found for today</p>
+            </div>
+          ) : (
+            <div className="space-y-3 mt-2">
+              {filteredOrders
+                .filter(order => isToday(new Date(order.completedAt || order.createdAt)))
+                .map((order) => (
+                  <Card key={order.id} className="overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="bg-white p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h3 className="font-semibold text-mir-black">
+                              Order #{order.id.slice(0, 6)}
+                            </h3>
+                            <p className="text-sm text-mir-gray-dark">
+                              {order.customer?.name || 'Guest'}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold">₹{order.totalAmount.toFixed(2)}</p>
+                            <p className="text-xs text-mir-gray-dark">
+                              {format(new Date(order.completedAt || order.createdAt), 'h:mm a')}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3 text-xs text-mir-gray-dark">
+                          <p><span className="font-medium">Items:</span> {order.items.length}</p>
+                          <p><span className="font-medium">Payment:</span> {order.paymentDetails?.method || 'N/A'}</p>
+                        </div>
+                        
+                        <div className="mt-3 flex justify-end">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="flex items-center"
+                            onClick={() => handlePrintReceipt(order.id)}
+                          >
+                            <Printer className="h-4 w-4 mr-1" /> Print
+                          </Button>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold">₹{order.totalAmount.toFixed(2)}</p>
-                        <p className="text-xs text-mir-gray-dark flex items-center">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          {formatDistanceToNow(new Date(order.completedAt || order.createdAt), { addSuffix: true })}
-                        </p>
+                    </CardContent>
+                  </Card>
+                ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <h3 className="font-medium text-lg mb-2">Previous Receipts</h3>
+          {filteredOrders.filter(order => 
+            !isToday(new Date(order.completedAt || order.createdAt))
+          ).length === 0 ? (
+            <div className="text-center py-4">
+              <p className="text-gray-500">No previous receipts found</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredOrders
+                .filter(order => !isToday(new Date(order.completedAt || order.createdAt)))
+                .map((order) => (
+                  <Card key={order.id} className="overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="bg-white p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h3 className="font-semibold text-mir-black">
+                              Order #{order.id.slice(0, 6)}
+                            </h3>
+                            <p className="text-sm text-mir-gray-dark">
+                              {order.customer?.name || 'Guest'}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold">₹{order.totalAmount.toFixed(2)}</p>
+                            <p className="text-xs text-mir-gray-dark flex items-center">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              {formatDistanceToNow(new Date(order.completedAt || order.createdAt), { addSuffix: true })}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3 text-xs text-mir-gray-dark">
+                          <p><span className="font-medium">Items:</span> {order.items.length}</p>
+                          <p><span className="font-medium">Payment:</span> {order.paymentDetails?.method || 'N/A'}</p>
+                        </div>
+                        
+                        <div className="mt-3 flex justify-end">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="flex items-center"
+                            onClick={() => handlePrintReceipt(order.id)}
+                          >
+                            <Printer className="h-4 w-4 mr-1" /> Print
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="mt-3 text-xs text-mir-gray-dark">
-                      <p><span className="font-medium">Items:</span> {order.items.length}</p>
-                      <p><span className="font-medium">Payment:</span> {order.paymentDetails?.method || 'N/A'}</p>
-                    </div>
-                    
-                    <div className="mt-3 flex justify-end">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="flex items-center"
-                        onClick={() => handlePrintReceipt(order.id)}
-                      >
-                        <Printer className="h-4 w-4 mr-1" /> Print
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                    </CardContent>
+                  </Card>
+                ))}
+            </div>
+          )}
+        </div>
       </div>
     </Layout>
   );
