@@ -32,6 +32,7 @@ export interface PurchaseLog {
 // Inventory context type
 interface InventoryContextType {
   items: InventoryItem[];
+  inventoryItems: InventoryItem[]; // Alias for backward compatibility
   purchaseLogs: PurchaseLog[];
   addItem: (item: Omit<InventoryItem, 'id' | 'lastUpdated'>) => void;
   updateItem: (item: InventoryItem) => void;
@@ -204,6 +205,7 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
   // Context value
   const value = {
     items,
+    inventoryItems: items, // Alias for backward compatibility
     purchaseLogs,
     addItem,
     updateItem,

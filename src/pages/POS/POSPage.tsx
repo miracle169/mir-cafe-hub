@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useMenu } from '@/contexts/MenuContext';
@@ -11,8 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const POSPage = () => {
-  const { menuItems, categories, isLoading } = useMenu();
-  const { cart, updateCart } = useCart();
+  const { menuItems = [], categories = [], isLoading = false } = useMenu();
+  const { cart = [], updateCart } = useCart();
   const navigate = useNavigate();
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -20,6 +21,11 @@ const POSPage = () => {
 
   // Handle adding item to cart
   const handleAddItem = (item) => {
+    if (!cart) {
+      updateCart([{ ...item, quantity: 1 }]);
+      return;
+    }
+    
     const existingItem = cart.find((cartItem) => cartItem.id === item.id);
     
     if (existingItem) {
@@ -37,7 +43,7 @@ const POSPage = () => {
   };
 
   // Filter items based on search and category
-  const filteredItems = menuItems.filter((item) => {
+  const filteredItems = menuItems ? menuItems.filter((item) => {
     const matchesSearch = searchQuery === '' || 
       item.name.toLowerCase().includes(searchQuery.toLowerCase());
     
@@ -45,10 +51,10 @@ const POSPage = () => {
       item.category === selectedCategory;
     
     return matchesSearch && matchesCategory;
-  });
+  }) : [];
 
   // Calculate total items in cart
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const totalItems = cart ? cart.reduce((sum, item) => sum + item.quantity, 0) : 0;
 
   return (
     <Layout title="Point of Sale">
@@ -71,7 +77,7 @@ const POSPage = () => {
               <Button
                 onClick={() => navigate('/pos/cart')}
                 className="w-full md:w-auto"
-                disabled={cart.length === 0}
+                disabled={!cart || cart.length === 0}
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />
                 View Cart
@@ -88,7 +94,7 @@ const POSPage = () => {
                 <TabsTrigger value="all" onClick={() => setSelectedCategory(null)}>
                   All Items
                 </TabsTrigger>
-                {categories.map((category) => (
+                {categories && categories.map((category) => (
                   <TabsTrigger 
                     key={category.id} 
                     value={category.id}
@@ -114,7 +120,7 @@ const POSPage = () => {
                             </div>
                             <Badge variant="outline" className="text-xs">
                               <Tag className="h-3 w-3 mr-1" />
-                              {categories.find(c => c.id === item.category)?.name || 'Uncategorized'}
+                              {categories && categories.find(c => c.id === item.category)?.name || 'Uncategorized'}
                             </Badge>
                           </div>
                           <Button 
@@ -135,7 +141,7 @@ const POSPage = () => {
                 )}
               </TabsContent>
 
-              {categories.map((category) => (
+              {categories && categories.map((category) => (
                 <TabsContent key={category.id} value={category.id} className="mt-0">
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {filteredItems.map((item) => (

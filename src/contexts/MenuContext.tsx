@@ -29,10 +29,14 @@ export interface MenuCategory {
 // Menu context type
 interface MenuContextType {
   items: MenuItem[];
+  menuItems: MenuItem[]; // Alias for backward compatibility
   categories: MenuCategory[];
   addItem: (item: Omit<MenuItem, 'id'>) => void;
+  addMenuItem: (item: Omit<MenuItem, 'id'>) => void; // Alias for backward compatibility
   updateItem: (item: MenuItem) => void;
+  updateMenuItem: (item: MenuItem) => void; // Alias for backward compatibility
   deleteItem: (id: string) => void;
+  deleteMenuItem: (id: string) => void; // Alias for backward compatibility
   addCategory: (category: Omit<MenuCategory, 'id'>) => void;
   updateCategory: (category: MenuCategory) => void;
   deleteCategory: (id: string) => void;
@@ -40,6 +44,7 @@ interface MenuContextType {
   getItemsByCategory: (categoryId: string) => MenuItem[];
   bulkAddItems: (items: Omit<MenuItem, 'id'>[]) => void;
   bulkAddCategories: (categories: Omit<MenuCategory, 'id'>[]) => void;
+  isLoading: boolean;
 }
 
 // Create the context
@@ -105,6 +110,7 @@ const initialItems: MenuItem[] = [
 export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -121,6 +127,8 @@ export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } else {
       setCategories(initialCategories);
     }
+    
+    setIsLoading(false);
   }, []);
 
   // Save to localStorage when they change
@@ -142,6 +150,9 @@ export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setItems((prevItems) => [...prevItems, newItem]);
   };
 
+  // Add a new menu item (alias for backward compatibility)
+  const addMenuItem = addItem;
+
   // Update a menu item
   const updateItem = (updatedItem: MenuItem) => {
     setItems((prevItems) =>
@@ -149,10 +160,16 @@ export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
   };
 
+  // Update a menu item (alias for backward compatibility)
+  const updateMenuItem = updateItem;
+
   // Delete a menu item
   const deleteItem = (id: string) => {
     setItems((prevItems) => prevItems.filter((item) => item.id !== id));
   };
+
+  // Delete a menu item (alias for backward compatibility)
+  const deleteMenuItem = deleteItem;
 
   // Add a new category
   const addCategory = (newCategoryData: Omit<MenuCategory, 'id'>) => {
@@ -213,10 +230,14 @@ export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Context value
   const value = {
     items,
+    menuItems: items, // Alias for backward compatibility
     categories,
     addItem,
+    addMenuItem,
     updateItem,
+    updateMenuItem,
     deleteItem,
+    deleteMenuItem,
     addCategory,
     updateCategory,
     deleteCategory,
@@ -224,6 +245,7 @@ export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     getItemsByCategory,
     bulkAddItems,
     bulkAddCategories,
+    isLoading,
   };
 
   return <MenuContext.Provider value={value}>{children}</MenuContext.Provider>;

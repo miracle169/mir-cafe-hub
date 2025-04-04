@@ -1,140 +1,234 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useMenu } from '@/contexts/MenuContext';
 import { useInventory } from '@/contexts/InventoryContext';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Plus, Pencil, Trash2, Tag, UtensilsCrossed } from 'lucide-react';
-import AddMenuItem from '@/components/Menu/AddMenuItem';
+import { Button } from '@/components/ui/button';
+import { Search, Plus, Edit, Trash2, Tag } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AddMenuItem } from '@/components/Menu/AddMenuItem';
+import { useToast } from '@/hooks/use-toast';
 
 const ProductsPage = () => {
-  const { menuItems, categories, isLoading, addMenuItem, updateMenuItem, deleteMenuItem } = useMenu();
-  const { inventoryItems } = useInventory();
+  const { items: menuItems = [], categories = [], isLoading, addItem, updateItem, deleteItem } = useMenu();
+  const { items: inventoryItems = [] } = useInventory();
+  const { toast } = useToast();
+  
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [selectedTab, setSelectedTab] = useState<'products' | 'categories'>('products');
+  
+  // Filter products based on search query
+  const filteredProducts = menuItems ? menuItems.filter(
+    (product) => 
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (product.description || '').toLowerCase().includes(searchQuery.toLowerCase())
+  ) : [];
 
-  useEffect(() => {
-    // You can perform any necessary actions here when the component mounts
-  }, []);
+  // Filter categories based on search query
+  const filteredCategories = categories ? categories.filter(
+    (category) => category.name.toLowerCase().includes(searchQuery.toLowerCase())
+  ) : [];
 
-  const filteredItems = menuItems.filter((item) => {
-    const matchesSearch = searchQuery === '' ||
-      item.name.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesCategory = selectedCategory === null ||
-      item.category_id === selectedCategory;
-
-    return matchesSearch && matchesCategory;
-  });
-
-  const handleEdit = (item) => {
-    setSelectedItem(item);
-    setOpen(true);
-  };
-
-  const handleDelete = async (item) => {
-    if (confirm(`Are you sure you want to delete ${item.name}?`)) {
-      try {
-        await deleteMenuItem(item.id);
-        // Optionally, update the local state or re-fetch the menu items
-      } catch (error) {
-        console.error("Error deleting menu item:", error);
-      }
+  // Handle product deletion
+  const handleDeleteProduct = (id) => {
+    if (window.confirm('Are you sure you want to delete this product?')) {
+      deleteItem(id);
+      toast({
+        title: 'Product Deleted',
+        description: 'The product has been deleted successfully.',
+        duration: 1000,
+      });
     }
   };
 
+  // Handle category deletion
+  const handleDeleteCategory = (id) => {
+    if (menuItems && menuItems.some(item => item.category === id)) {
+      toast({
+        title: 'Cannot Delete Category',
+        description: 'This category contains products. Remove or reassign them first.',
+        variant: 'destructive',
+        duration: 1000,
+      });
+      return;
+    }
+    
+    if (window.confirm('Are you sure you want to delete this category?')) {
+      // Use the context function
+      deleteCategory(id);
+      toast({
+        title: 'Category Deleted',
+        description: 'The category has been deleted successfully.',
+        duration: 1000,
+      });
+    }
+  };
+  
+  // Handle edit product click
+  const handleEditProduct = (item) => {
+    setEditingItem(item);
+    setIsAddDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setEditingItem(null);
+    setIsAddDialogOpen(false);
+  };
+  
   return (
-    <Layout title="Products">
-      <div className="p-4 max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
-          <div className="flex-1 w-full">
-            <div className="relative">
+    <Layout title="Products Management">
+      <div className="p-4 max-w-7xl mx-auto">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+            <div className="w-full md:w-auto md:flex-1 relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
               <Input
                 type="search"
-                placeholder="Search products..."
+                placeholder="Search products or categories..."
                 className="pl-8"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+            
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Product
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>{editingItem ? 'Edit Product' : 'Add New Product'}</DialogTitle>
+                </DialogHeader>
+                <AddMenuItem setOpen={handleCloseDialog} />
+              </DialogContent>
+            </Dialog>
           </div>
 
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setSelectedItem(null)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Product
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>{selectedItem ? 'Edit Product' : 'Add Product'}</DialogTitle>
-                <DialogDescription>
-                  {selectedItem ? 'Update the product details here.' : 'Create a new product by entering the details below.'}
-                </DialogDescription>
-              </DialogHeader>
-              <AddMenuItem item={selectedItem} setOpen={setOpen} />
-              <DialogFooter>
-                <Button type="submit" form="menu-item-form" disabled={isLoading}>
-                  {isLoading ? 'Saving...' : 'Save changes'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+          <Tabs 
+            value={selectedTab} 
+            onValueChange={(value: any) => setSelectedTab(value)}
+            className="w-full"
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="products">Products</TabsTrigger>
+              <TabsTrigger value="categories">Categories</TabsTrigger>
+            </TabsList>
 
-        <Tabs defaultValue="all" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            {categories.map((category) => (
-              <TabsTrigger value={category.id} key={category.id}>
-                {category.name}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          <Separator />
-          <ScrollArea className="h-[70vh] w-full rounded-md border">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
-              {filteredItems.map((item) => (
-                <Card key={item.id} className="bg-white shadow-md overflow-hidden">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">{item.name}</CardTitle>
-                    <Badge variant="secondary">
-                      ₹{item.price.toFixed(2)}
-                    </Badge>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-sm text-muted-foreground">
-                      Category: {categories.find(cat => cat.id === item.category_id)?.name || 'N/A'}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {inventoryItems.find(inv => inv.menu_item_id === item.id) ? 'In Stock' : 'Out of Stock'}
-                    </div>
-                  </CardContent>
-                  <CardFooter className="flex justify-between">
-                    <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
-                      <Pencil className="mr-2 h-4 w-4" />
-                      Edit
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(item)}>
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-          </ScrollArea>
-        </Tabs>
+            <TabsContent value="products" className="mt-6">
+              {isLoading ? (
+                <div className="text-center py-8">Loading products...</div>
+              ) : filteredProducts && filteredProducts.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredProducts.map((product) => (
+                    <Card key={product.id} className="overflow-hidden">
+                      <CardHeader className="bg-gray-50 p-4">
+                        <div className="flex justify-between items-start">
+                          <CardTitle className="text-lg font-medium">{product.name}</CardTitle>
+                          <Badge variant="outline" className="text-xs">
+                            <Tag className="h-3 w-3 mr-1" />
+                            {categories && categories.find(c => c.id === product.category)?.name || 'Uncategorized'}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4">
+                        <p className="font-medium text-md mb-1">₹{product.price.toFixed(2)}</p>
+                        {product.description && (
+                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.description}</p>
+                        )}
+                        
+                        {product.recipe && product.recipe.length > 0 && (
+                          <div className="mb-3">
+                            <h4 className="text-xs font-semibold uppercase text-gray-500 mb-1">Recipe:</h4>
+                            <ul className="text-sm space-y-1">
+                              {product.recipe.map((item, index) => (
+                                <li key={index} className="flex justify-between">
+                                  <span>{item.ingredientName}</span>
+                                  <span className="text-gray-500">{item.quantity} {item.unit}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        <div className="flex justify-end gap-2 mt-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleEditProduct(product)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm" 
+                            onClick={() => handleDeleteProduct(product.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p>No products found. Add your first product to get started.</p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="categories" className="mt-6">
+              {filteredCategories && filteredCategories.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredCategories.map((category) => (
+                    <Card key={category.id} className="overflow-hidden">
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-center">
+                          <h3 className="font-medium">{category.name}</h3>
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => {
+                                // Handle edit category
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="destructive" 
+                              size="sm" 
+                              onClick={() => handleDeleteCategory(category.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <p className="text-sm text-gray-500 mt-2">
+                          {menuItems && menuItems.filter(item => item.category === category.id).length} products
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p>No categories found. Add your first category to get started.</p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </Layout>
   );
