@@ -6,18 +6,25 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useOrder } from '@/contexts/OrderContext';
-import { Search, Printer, Calendar } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Search, Printer, Calendar, Bluetooth } from 'lucide-react';
 import { formatDistanceToNow, format, isToday } from 'date-fns';
+import { connectPrinter, printBill, disconnectPrinter, isPrinterConnected } from '@/utils/printing';
 
 const ReceiptsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredOrders, setFilteredOrders] = useState<any[]>([]);
+  const [showPrinterDialog, setShowPrinterDialog] = useState(false);
+  const [printerConnected, setPrinterConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const { orders, syncOrders } = useOrder();
   const { toast } = useToast();
 
   // Sync orders when the page loads
   useEffect(() => {
     syncOrders();
+    // Check if printer is already connected
+    setPrinterConnected(isPrinterConnected());
   }, []);
 
   // Filter completed orders only
@@ -40,19 +47,101 @@ const ReceiptsPage = () => {
     }
   }, [orders, searchQuery]);
 
-  const handlePrintReceipt = (orderId: string) => {
+  const handlePrintReceipt = async (orderId: string) => {
+    if (!printerConnected) {
+      toast({
+        title: "Printer Not Connected",
+        description: "Please connect to a printer first",
+        duration: 1000,
+      });
+      setShowPrinterDialog(true);
+      return;
+    }
+
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
     toast({
-      title: "Receipt Printed",
-      description: "The receipt has been sent to the printer",
-      duration: 2000, // Set toast duration to 2 seconds
+      title: "Printing Receipt",
+      description: "Sending to printer...",
+      duration: 1000,
+    });
+
+    try {
+      const success = await printBill(order);
+      if (success) {
+        toast({
+          title: "Receipt Printed",
+          description: "The receipt has been sent to the printer",
+          duration: 1000,
+        });
+      } else {
+        toast({
+          title: "Print Failed",
+          description: "Failed to print receipt",
+          duration: 1000,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error printing receipt:', error);
+      toast({
+        title: "Print Error",
+        description: "An error occurred while printing",
+        duration: 1000,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleConnectPrinter = async () => {
+    setConnecting(true);
+    try {
+      const connected = await connectPrinter();
+      setPrinterConnected(connected);
+      
+      if (connected) {
+        toast({
+          title: "Printer Connected",
+          description: "Successfully connected to printer",
+          duration: 1000,
+        });
+      } else {
+        toast({
+          title: "Connection Failed",
+          description: "Failed to connect to printer",
+          duration: 1000,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error connecting to printer:', error);
+      toast({
+        title: "Connection Error",
+        description: "An error occurred while connecting to printer",
+        duration: 1000,
+        variant: "destructive",
+      });
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnectPrinter = () => {
+    disconnectPrinter();
+    setPrinterConnected(false);
+    toast({
+      title: "Printer Disconnected",
+      description: "Printer has been disconnected",
+      duration: 1000,
     });
   };
 
   return (
     <Layout title="Receipts" showBackButton>
       <div className="mir-container">
-        <div className="mb-4">
-          <div className="relative">
+        <div className="mb-4 flex justify-between items-center">
+          <div className="relative flex-1 mr-2">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <Input
               type="text"
@@ -62,6 +151,14 @@ const ReceiptsPage = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          <Button 
+            variant="outline" 
+            size="icon"
+            className={printerConnected ? "bg-green-100" : ""}
+            onClick={() => setShowPrinterDialog(true)}
+          >
+            <Bluetooth className={`h-4 w-4 ${printerConnected ? "text-green-600" : ""}`} />
+          </Button>
         </div>
 
         <div className="mb-4">
@@ -177,6 +274,49 @@ const ReceiptsPage = () => {
           )}
         </div>
       </div>
+
+      <Dialog open={showPrinterDialog} onOpenChange={setShowPrinterDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Bluetooth Printer</DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="text-sm text-mir-gray-dark mb-4">
+              {printerConnected 
+                ? "Printer is connected and ready to use." 
+                : "Connect to a Bluetooth thermal printer to print receipts and KOTs."}
+            </p>
+            
+            {printerConnected ? (
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={handleDisconnectPrinter}
+              >
+                Disconnect Printer
+              </Button>
+            ) : (
+              <Button
+                className="w-full"
+                onClick={handleConnectPrinter}
+                disabled={connecting}
+              >
+                {connecting ? "Connecting..." : "Connect to Printer"}
+              </Button>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowPrinterDialog(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

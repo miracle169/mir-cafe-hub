@@ -1,228 +1,150 @@
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
 import Layout from '@/components/layout/Layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-
-interface OwnerConfig {
-  id: string;
-  whatsapp_api_key: string | null;
-  upi_qr_code_url: string | null;
-}
+import { useToast } from '@/hooks/use-toast';
+import PrintSettings from '@/components/Settings/PrintSettings';
 
 const SettingsPage = () => {
-  const [whatsappApiKey, setWhatsappApiKey] = useState('');
-  const [upiQrUrl, setUpiQrUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const { currentUser } = useAuth();
   const { toast } = useToast();
-  const { hasPermission } = useAuth();
-  const navigate = useNavigate();
 
-  // Check if user has permission to access this page
-  useEffect(() => {
-    if (!hasPermission('owner')) {
-      toast({
-        title: "Access Denied",
-        description: "You don't have permission to access settings",
-        variant: "destructive",
-      });
-      navigate('/pos');
-    }
-  }, [hasPermission, navigate, toast]);
+  // Check if user is owner (would typically come from auth context)
+  const isOwner = currentUser?.role === 'owner';
 
-  // Load existing configuration
-  useEffect(() => {
-    const fetchConfig = async () => {
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('owner_config')
-          .select('*')
-          .single();
-
-        if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
-          throw error;
-        }
-
-        if (data) {
-          setWhatsappApiKey(data.whatsapp_api_key || '');
-          setUpiQrUrl(data.upi_qr_code_url || '');
-        }
-      } catch (error) {
-        console.error('Error loading config:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load settings",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchConfig();
-  }, [toast]);
-
-  // Save configuration
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      // Check if we already have a config record
-      const { data: existingConfig, error: checkError } = await supabase
-        .from('owner_config')
-        .select('id')
-        .limit(1);
-      
-      if (checkError) throw checkError;
-      
-      let result;
-      if (existingConfig && existingConfig.length > 0) {
-        // Update existing config
-        result = await supabase
-          .from('owner_config')
-          .update({
-            whatsapp_api_key: whatsappApiKey,
-            upi_qr_code_url: upiQrUrl,
-          })
-          .eq('id', existingConfig[0].id);
-      } else {
-        // Insert new config
-        result = await supabase
-          .from('owner_config')
-          .insert({
-            whatsapp_api_key: whatsappApiKey,
-            upi_qr_code_url: upiQrUrl,
-          });
-      }
-
-      if (result.error) throw result.error;
-      
-      toast({
-        title: "Settings Saved",
-        description: "Your configuration has been updated",
-      });
-    } catch (error) {
-      console.error('Error saving config:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save settings",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Handle file upload for UPI QR
-  const handleQrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      // TODO: Implement file upload to storage
-      // For now, we'll use a placeholder URL
-      setUpiQrUrl(`https://example.com/${file.name}`);
-      
-      toast({
-        title: "QR Code Added",
-        description: "Your QR code has been uploaded",
-      });
-    } catch (error) {
-      console.error('Error uploading QR:', error);
-      toast({
-        title: "Error",
-        description: "Failed to upload QR code",
-        variant: "destructive",
-      });
-    }
+  const handleSave = () => {
+    toast({
+      title: "Settings Saved",
+      description: "Your settings have been updated successfully",
+      duration: 1000,
+    });
   };
 
   return (
     <Layout title="Settings" showBackButton>
       <div className="mir-container">
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Owner Settings</CardTitle>
-            <CardDescription>Configure system settings for your café</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {isLoading ? (
-              <div className="flex justify-center py-4">
-                <p>Loading settings...</p>
-              </div>
-            ) : (
-              <>
+        <Tabs defaultValue="general" className="space-y-4">
+          <TabsList className="grid grid-cols-4 mb-4">
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="appearance">Appearance</TabsTrigger>
+            <TabsTrigger value="printing">Printing</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="general">
+            <Card>
+              <CardHeader>
+                <CardTitle>General Settings</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="whatsapp-api">WhatsApp API Key</Label>
-                  <Input 
-                    id="whatsapp-api" 
-                    value={whatsappApiKey}
-                    onChange={(e) => setWhatsappApiKey(e.target.value)}
-                    placeholder="Enter your WhatsApp Business API key"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    This key will be used to send order receipts to customers via WhatsApp
-                  </p>
+                  <Label htmlFor="cafe-name">Cafe Name</Label>
+                  <Input id="cafe-name" defaultValue="Mir Cafe" />
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="upi-qr">UPI QR Code</Label>
-                  <div className="flex items-center gap-4">
-                    <Input 
-                      id="upi-qr-url" 
-                      value={upiQrUrl}
-                      onChange={(e) => setUpiQrUrl(e.target.value)}
-                      placeholder="Enter URL or upload image"
-                      className="flex-1"
-                    />
-                    <div className="relative">
-                      <Button type="button" variant="outline">
-                        Upload
-                      </Button>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                        onChange={handleQrUpload}
-                      />
-                    </div>
+                  <Label htmlFor="address">Address</Label>
+                  <Input id="address" defaultValue="123 Main Street, City" />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input id="phone" defaultValue="+91 98765 43210" />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" defaultValue="contact@mircafe.com" />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="notifications" className="cursor-pointer">Enable Notifications</Label>
+                  <Switch id="notifications" defaultChecked />
+                </div>
+
+                <Button onClick={handleSave}>Save Changes</Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="appearance">
+            <Card>
+              <CardHeader>
+                <CardTitle>Appearance</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="dark-mode" className="cursor-pointer">Dark Mode</Label>
+                  <Switch id="dark-mode" />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Theme Color</Label>
+                  <div className="grid grid-cols-5 gap-2">
+                    <div className="w-10 h-10 rounded-full bg-red-500 cursor-pointer" />
+                    <div className="w-10 h-10 rounded-full bg-blue-500 cursor-pointer" />
+                    <div className="w-10 h-10 rounded-full bg-green-500 cursor-pointer" />
+                    <div className="w-10 h-10 rounded-full bg-purple-500 cursor-pointer" />
+                    <div className="w-10 h-10 rounded-full bg-yellow-500 cursor-pointer" />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    This QR code will be displayed when a customer pays via UPI
-                  </p>
-                  
-                  {upiQrUrl && (
-                    <div className="mt-2 border rounded-md p-4 max-w-[200px] mx-auto">
-                      <img 
-                        src={upiQrUrl} 
-                        alt="UPI QR Code" 
-                        className="w-full h-auto"
-                        onError={(e) => {
-                          e.currentTarget.src = "https://via.placeholder.com/200?text=QR+Code+Preview";
-                        }}
-                      />
-                    </div>
-                  )}
                 </div>
                 
-                <Button 
-                  className="w-full mt-4 bg-mir-yellow text-mir-black hover:bg-mir-yellow/90"
-                  onClick={handleSave}
-                  disabled={isSaving}
-                >
-                  {isSaving ? 'Saving...' : 'Save Settings'}
-                </Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="compact-view" className="cursor-pointer">Compact View</Label>
+                  <Switch id="compact-view" />
+                </div>
+                
+                <Button onClick={handleSave}>Save Changes</Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="printing">
+            <PrintSettings isOwner={isOwner} />
+          </TabsContent>
+          
+          <TabsContent value="billing">
+            <Card>
+              <CardHeader>
+                <CardTitle>Billing Settings</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tax-rate">Tax Rate (%)</Label>
+                  <Input id="tax-rate" type="number" defaultValue="5" />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="currency">Currency</Label>
+                  <Input id="currency" defaultValue="₹" />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="round-totals" className="cursor-pointer">Round Totals</Label>
+                  <Switch id="round-totals" defaultChecked />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="service-charge" className="cursor-pointer">Include Service Charge</Label>
+                  <Switch id="service-charge" />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="service-rate">Service Charge Rate (%)</Label>
+                  <Input id="service-rate" type="number" defaultValue="10" />
+                </div>
+                
+                <Button onClick={handleSave}>Save Changes</Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </Layout>
   );

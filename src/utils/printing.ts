@@ -76,6 +76,53 @@ export const isPrinterConnected = (): boolean => {
   return !!(gattServer && gattServer.connected && printCharacteristic);
 };
 
+// Get bill format settings from localStorage
+const getBillFormatSettings = () => {
+  const defaultSettings = {
+    printLogo: true,
+    printAddress: true,
+    printCustomerInfo: true,
+    printItemizedDetails: true,
+    printTaxDetails: true,
+    printDiscountDetails: true,
+    footerMessage: "Thank you for visiting Mir Cafe! We hope to see you again soon!"
+  };
+  
+  try {
+    const savedSettings = localStorage.getItem('mirCafePrintSettings');
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings);
+      return parsed.bill || defaultSettings;
+    }
+  } catch (error) {
+    console.error('Error parsing bill settings:', error);
+  }
+  
+  return defaultSettings;
+};
+
+// Get KOT format settings from localStorage
+const getKotFormatSettings = () => {
+  const defaultSettings = {
+    printTableNumber: true,
+    printTime: true,
+    printServername: true,
+    footerMessage: ""
+  };
+  
+  try {
+    const savedSettings = localStorage.getItem('mirCafeKotSettings');
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings);
+      return parsed.kot || defaultSettings;
+    }
+  } catch (error) {
+    console.error('Error parsing KOT settings:', error);
+  }
+  
+  return defaultSettings;
+};
+
 // Print order KOT (Kitchen Order Ticket)
 export const printKOT = async (order: any): Promise<boolean> => {
   if (!isPrinterConnected()) {
@@ -85,18 +132,26 @@ export const printKOT = async (order: any): Promise<boolean> => {
   
   try {
     const encoder = new TextEncoder();
+    const kotSettings = getKotFormatSettings();
     
     // Format KOT data
     let kotData = `\n\nKITCHEN ORDER TICKET\n\n`;
     kotData += `Order #: ${order.id.slice(-5)}\n`;
     kotData += `Type: ${order.type.toUpperCase()}\n`;
     
-    if (order.type === 'dine-in' && order.tableNumber) {
+    if (kotSettings.printTableNumber && order.type === 'dine-in' && order.tableNumber) {
       kotData += `Table: ${order.tableNumber}\n`;
     }
     
-    kotData += `Date: ${new Date(order.createdAt).toLocaleString()}\n\n`;
-    kotData += `ITEMS:\n`;
+    if (kotSettings.printTime) {
+      kotData += `Date: ${new Date(order.createdAt).toLocaleString()}\n`;
+    }
+    
+    if (kotSettings.printServername && order.staffName) {
+      kotData += `Server: ${order.staffName}\n`;
+    }
+    
+    kotData += `\nITEMS:\n`;
     
     order.items.forEach((item: any, index: number) => {
       kotData += `${item.quantity}x ${item.name}\n`;
@@ -104,6 +159,10 @@ export const printKOT = async (order: any): Promise<boolean> => {
     
     if (order.notes) {
       kotData += `\nNotes: ${order.notes}\n`;
+    }
+    
+    if (kotSettings.footerMessage) {
+      kotData += `\n${kotSettings.footerMessage}\n`;
     }
     
     kotData += `\n\n\n`; // Extra lines for cutting
@@ -127,38 +186,69 @@ export const printBill = async (order: any): Promise<boolean> => {
   
   try {
     const encoder = new TextEncoder();
+    const billSettings = getBillFormatSettings();
     
     // Format bill data
-    let billData = `\n\nMIR CAFE\n\n`;
+    let billData = `\n\n`;
+    
+    if (billSettings.printLogo) {
+      billData += `MIR CAFE\n\n`;
+    }
+    
     billData += `INVOICE\n`;
     billData += `Order #: ${order.id.slice(-5)}\n`;
     billData += `Date: ${new Date(order.createdAt).toLocaleString()}\n`;
-    billData += `Staff: ${order.staffName}\n\n`;
     
-    if (order.customer) {
-      billData += `Customer: ${order.customer.name}\n`;
-      billData += `Phone: ${order.customer.phone}\n\n`;
+    if (order.staffName) {
+      billData += `Staff: ${order.staffName}\n`;
     }
     
-    billData += `ITEMS:\n`;
+    if (billSettings.printAddress) {
+      billData += `\n123 Main Street, City\n`;
+      billData += `Phone: +91 98765 43210\n`;
+    }
+    
+    if (billSettings.printCustomerInfo && order.customer) {
+      billData += `\nCustomer: ${order.customer.name}\n`;
+      if (order.customer.phone) {
+        billData += `Phone: ${order.customer.phone}\n`;
+      }
+    }
+    
+    billData += `\nITEMS:\n`;
     billData += `--------------------------\n`;
     
     // Calculate total
     let subTotal = 0;
     
-    order.items.forEach((item: any) => {
-      const itemTotal = item.price * item.quantity;
-      subTotal += itemTotal;
-      billData += `${item.quantity}x ${item.name}\n`;
-      billData += `  ₹${item.price.toFixed(2)} each: ₹${itemTotal.toFixed(2)}\n`;
-    });
+    if (billSettings.printItemizedDetails) {
+      order.items.forEach((item: any) => {
+        const itemTotal = item.price * item.quantity;
+        subTotal += itemTotal;
+        billData += `${item.quantity}x ${item.name}\n`;
+        billData += `  ₹${item.price.toFixed(2)} each: ₹${itemTotal.toFixed(2)}\n`;
+      });
+    } else {
+      // Just print quantities and names, no prices
+      order.items.forEach((item: any) => {
+        const itemTotal = item.price * item.quantity;
+        subTotal += itemTotal;
+        billData += `${item.quantity}x ${item.name}\n`;
+      });
+    }
     
     billData += `--------------------------\n`;
     billData += `Subtotal: ₹${subTotal.toFixed(2)}\n`;
     
     // Add tax/service charge if applicable
-    // const tax = subTotal * 0.05; // Example 5% tax
-    // billData += `Tax (5%): ₹${tax.toFixed(2)}\n`;
+    if (billSettings.printTaxDetails) {
+      const tax = subTotal * 0.05; // Example 5% tax
+      billData += `Tax (5%): ₹${tax.toFixed(2)}\n`;
+    }
+    
+    if (billSettings.printDiscountDetails && order.discount) {
+      billData += `Discount: ₹${order.discount.toFixed(2)}\n`;
+    }
     
     billData += `TOTAL: ₹${order.totalAmount.toFixed(2)}\n\n`;
     
@@ -175,8 +265,11 @@ export const printBill = async (order: any): Promise<boolean> => {
       }
     }
     
-    billData += `\nThank you for visiting Mir Cafe!\n`;
-    billData += `We hope to see you again soon!\n\n\n`;
+    if (billSettings.footerMessage) {
+      billData += `\n${billSettings.footerMessage}\n`;
+    }
+    
+    billData += `\n\n\n`;
     
     // Send data to printer
     await printCharacteristic!.writeValue(encoder.encode(billData));
