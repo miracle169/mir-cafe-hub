@@ -1,247 +1,188 @@
 
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { useAuth } from './AuthContext';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
-// Attendance entry interface
-export interface AttendanceEntry {
+// Define the attendance record type
+interface AttendanceRecord {
   id: string;
   staffId: string;
-  staffName: string;
+  date: string;
   checkInTime: string;
   checkOutTime?: string;
-  date: string; // YYYY-MM-DD format
 }
 
-// Cash register entry interface
-export interface CashRegisterEntry {
-  id: string;
-  staffId: string;
-  staffName: string;
-  date: string; // YYYY-MM-DD format
-  openingAmount: number;
-  closingAmount?: number;
-  reason?: string;
-}
-
-// Attendance context type
+// Define the context type
 interface AttendanceContextType {
-  entries: AttendanceEntry[];
-  cashRegisterEntries: CashRegisterEntry[];
-  checkIn: (staffId: string, staffName: string) => void;
-  checkOut: (staffId: string) => void;
-  getStaffAttendance: (staffId: string, date: string) => AttendanceEntry | undefined;
-  getEntriesByDate: (date: string) => AttendanceEntry[];
-  getPresentStaff: () => { id: string; name: string }[];
-  getAttendanceReport: (month: number, year: number) => Record<string, number>;
-  registerOpeningCash: (staffId: string, staffName: string, amount: number, reason?: string) => void;
-  registerClosingCash: (staffId: string, amount: number) => void;
-  getTodayCashRegister: (staffId: string) => CashRegisterEntry | undefined;
-  getDailyCashRegisterEntries: (date: string) => CashRegisterEntry[];
+  addAttendanceRecord: (staffId: string, checkIn: boolean) => Promise<void>;
+  getAttendanceForDate: (date: string) => AttendanceRecord[];
+  getAttendanceForStaff: (staffId: string) => AttendanceRecord[];
+  getAttendanceForToday: (staffId: string) => AttendanceRecord[];
+  checkIn: (staffId: string) => Promise<void>;
+  checkOut: (staffId: string) => Promise<void>;
 }
 
 // Create the context
 const AttendanceContext = createContext<AttendanceContextType | undefined>(undefined);
 
-// Helper to get today's date in YYYY-MM-DD format
-const getTodayDate = () => {
-  const today = new Date();
-  return today.toISOString().split('T')[0];
-};
-
 // Provider component
 export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { staffMembers } = useAuth();
-  const [entries, setEntries] = useState<AttendanceEntry[]>([]);
-  const [cashRegisterEntries, setCashRegisterEntries] = useState<CashRegisterEntry[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const { toast } = useToast();
 
-  // Load from localStorage on mount
+  // Fetch attendance records on mount
   useEffect(() => {
-    const savedEntries = localStorage.getItem('mir-attendance');
-    if (savedEntries) {
-      setEntries(JSON.parse(savedEntries));
-    }
-
-    const savedCashEntries = localStorage.getItem('mir-cash-register');
-    if (savedCashEntries) {
-      setCashRegisterEntries(JSON.parse(savedCashEntries));
-    }
+    fetchAttendanceRecords();
   }, []);
 
-  // Save to localStorage when data changes
-  useEffect(() => {
-    localStorage.setItem('mir-attendance', JSON.stringify(entries));
-  }, [entries]);
+  // Fetch attendance records from the database
+  const fetchAttendanceRecords = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('*')
+        .order('date', { ascending: false });
 
-  useEffect(() => {
-    localStorage.setItem('mir-cash-register', JSON.stringify(cashRegisterEntries));
-  }, [cashRegisterEntries]);
-
-  // Check in a staff member
-  const checkIn = (staffId: string, staffName: string) => {
-    const today = getTodayDate();
-    
-    // Check if staff already checked in today
-    const existingEntry = entries.find(
-      (entry) => entry.staffId === staffId && entry.date === today && !entry.checkOutTime
-    );
-
-    if (existingEntry) {
-      return; // Already checked in
-    }
-
-    const newEntry: AttendanceEntry = {
-      id: Date.now().toString(),
-      staffId,
-      staffName,
-      checkInTime: new Date().toISOString(),
-      date: today,
-    };
-
-    setEntries((prevEntries) => [...prevEntries, newEntry]);
-  };
-
-  // Check out a staff member
-  const checkOut = (staffId: string) => {
-    const today = getTodayDate();
-    
-    setEntries((prevEntries) =>
-      prevEntries.map((entry) => {
-        if (entry.staffId === staffId && entry.date === today && !entry.checkOutTime) {
-          return {
-            ...entry,
-            checkOutTime: new Date().toISOString(),
-          };
-        }
-        return entry;
-      })
-    );
-  };
-
-  // Get staff attendance for a specific date
-  const getStaffAttendance = (staffId: string, date: string) => {
-    return entries.find((entry) => entry.staffId === staffId && entry.date === date);
-  };
-
-  // Get all entries for a specific date
-  const getEntriesByDate = (date: string) => {
-    return entries.filter((entry) => entry.date === date);
-  };
-
-  // Get currently present staff
-  const getPresentStaff = () => {
-    const today = getTodayDate();
-    const presentEntries = entries.filter(
-      (entry) => entry.date === today && !entry.checkOutTime
-    );
-
-    return presentEntries.map((entry) => ({
-      id: entry.staffId,
-      name: entry.staffName,
-    }));
-  };
-
-  // Get attendance report for a month
-  const getAttendanceReport = (month: number, year: number) => {
-    const report: Record<string, number> = {};
-
-    // Initialize report with all staff members
-    staffMembers.forEach((staff) => {
-      report[staff.id] = 0;
-    });
-
-    // Filter entries for the specified month and year
-    const monthEntries = entries.filter((entry) => {
-      const entryDate = new Date(entry.date);
-      return entryDate.getMonth() === month && entryDate.getFullYear() === year;
-    });
-
-    // Count days present for each staff member
-    monthEntries.forEach((entry) => {
-      if (report[entry.staffId] !== undefined) {
-        report[entry.staffId]++;
+      if (error) {
+        throw error;
       }
-    });
 
-    return report;
-  };
-
-  // Register opening cash amount
-  const registerOpeningCash = (staffId: string, staffName: string, amount: number, reason?: string) => {
-    const today = getTodayDate();
-    
-    // Check if there's already an entry for today
-    const existingEntry = cashRegisterEntries.find(
-      (entry) => entry.staffId === staffId && entry.date === today
-    );
-
-    if (existingEntry) {
-      // Update the existing entry
-      setCashRegisterEntries((prevEntries) =>
-        prevEntries.map((entry) =>
-          entry.id === existingEntry.id
-            ? { ...entry, openingAmount: amount, reason }
-            : entry
-        )
-      );
-    } else {
-      // Create a new entry
-      const newEntry: CashRegisterEntry = {
-        id: Date.now().toString(),
-        staffId,
-        staffName,
-        date: today,
-        openingAmount: amount,
-        reason,
-      };
-
-      setCashRegisterEntries((prevEntries) => [...prevEntries, newEntry]);
+      if (data) {
+        setAttendanceRecords(data.map(record => ({
+          id: record.id,
+          staffId: record.staff_id,
+          date: record.date,
+          checkInTime: record.check_in_time,
+          checkOutTime: record.check_out_time
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching attendance records:', error);
     }
   };
 
-  // Register closing cash amount
-  const registerClosingCash = (staffId: string, amount: number) => {
-    const today = getTodayDate();
-    
-    setCashRegisterEntries((prevEntries) =>
-      prevEntries.map((entry) => {
-        if (entry.staffId === staffId && entry.date === today) {
-          return {
-            ...entry,
-            closingAmount: amount,
-          };
+  // Add a new attendance record
+  const addAttendanceRecord = async (staffId: string, checkIn: boolean) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const now = new Date().toISOString();
+
+      if (checkIn) {
+        // Add check-in record
+        const { error } = await supabase
+          .from('attendance')
+          .insert({
+            staff_id: staffId,
+            date: today,
+            check_in_time: now
+          });
+
+        if (error) throw error;
+      } else {
+        // Find the latest check-in record for this staff member that doesn't have a check-out time
+        const todayRecords = getAttendanceForToday(staffId);
+        const latestCheckIn = todayRecords.length > 0 ? 
+          todayRecords[todayRecords.length - 1] : null;
+
+        if (latestCheckIn && !latestCheckIn.checkOutTime) {
+          // Update the existing record with check-out time
+          const { error } = await supabase
+            .from('attendance')
+            .update({ check_out_time: now })
+            .eq('id', latestCheckIn.id);
+
+          if (error) throw error;
+        } else {
+          // Create a new record with both check-in and check-out times
+          const { error } = await supabase
+            .from('attendance')
+            .insert({
+              staff_id: staffId,
+              date: today,
+              check_in_time: now,
+              check_out_time: now
+            });
+
+          if (error) throw error;
         }
-        return entry;
-      })
+      }
+
+      // Refresh attendance records
+      await fetchAttendanceRecords();
+
+    } catch (error) {
+      console.error('Error recording attendance:', error);
+      throw error;
+    }
+  };
+
+  // Check in
+  const checkIn = async (staffId: string) => {
+    try {
+      await addAttendanceRecord(staffId, true);
+      toast({
+        title: "Checked In",
+        description: `You have checked in at ${new Date().toLocaleTimeString()}`,
+        duration: 1000,
+      });
+    } catch (error) {
+      console.error('Error checking in:', error);
+      toast({
+        title: "Check-in Failed",
+        description: "Failed to record check-in",
+        variant: "destructive",
+        duration: 1000,
+      });
+      throw error;
+    }
+  };
+
+  // Check out
+  const checkOut = async (staffId: string) => {
+    try {
+      await addAttendanceRecord(staffId, false);
+      toast({
+        title: "Checked Out",
+        description: `You have checked out at ${new Date().toLocaleTimeString()}`,
+        duration: 1000,
+      });
+    } catch (error) {
+      console.error('Error checking out:', error);
+      toast({
+        title: "Check-out Failed",
+        description: "Failed to record check-out",
+        variant: "destructive",
+        duration: 1000,
+      });
+      throw error;
+    }
+  };
+
+  // Get attendance records for a specific date
+  const getAttendanceForDate = (date: string) => {
+    return attendanceRecords.filter(record => record.date === date);
+  };
+
+  // Get attendance records for a specific staff member
+  const getAttendanceForStaff = (staffId: string) => {
+    return attendanceRecords.filter(record => record.staffId === staffId);
+  };
+
+  // Get today's attendance records for a specific staff member
+  const getAttendanceForToday = (staffId: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    return attendanceRecords.filter(
+      record => record.staffId === staffId && record.date === today
     );
   };
 
-  // Get today's cash register entry for a staff member
-  const getTodayCashRegister = (staffId: string) => {
-    const today = getTodayDate();
-    return cashRegisterEntries.find(
-      (entry) => entry.staffId === staffId && entry.date === today
-    );
-  };
-
-  // Get all cash register entries for a specific date
-  const getDailyCashRegisterEntries = (date: string) => {
-    return cashRegisterEntries.filter((entry) => entry.date === date);
-  };
-
-  // Context value
   const value = {
-    entries,
-    cashRegisterEntries,
+    addAttendanceRecord,
+    getAttendanceForDate,
+    getAttendanceForStaff,
+    getAttendanceForToday,
     checkIn,
     checkOut,
-    getStaffAttendance,
-    getEntriesByDate,
-    getPresentStaff,
-    getAttendanceReport,
-    registerOpeningCash,
-    registerClosingCash,
-    getTodayCashRegister,
-    getDailyCashRegisterEntries,
   };
 
   return <AttendanceContext.Provider value={value}>{children}</AttendanceContext.Provider>;

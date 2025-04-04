@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
@@ -5,12 +6,18 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAttendance } from '@/contexts/AttendanceContext';
-import { BarChart, ShoppingCart, Users, Package, ClipboardList, Clock, Settings, Calendar, CreditCard } from 'lucide-react'; // Changed ClockIn to Clock
+import { BarChart, ShoppingCart, Users, Package, ClipboardList, Clock, Settings, Calendar, CreditCard } from 'lucide-react';
 
 const HomePage = () => {
   const navigate = useNavigate();
   const { currentUser, isOwner } = useAuth();
-  const { checkInToday, checkOutToday, checkIn, checkOut } = useAttendance();
+  const { getAttendanceForToday, checkIn, checkOut } = useAttendance();
+  
+  // Get today's attendance records for the current user
+  const todayAttendance = currentUser ? getAttendanceForToday(currentUser.id) : [];
+  const hasCheckedInToday = todayAttendance.length > 0;
+  const lastCheckIn = todayAttendance[todayAttendance.length - 1];
+  const hasCheckedOutToday = lastCheckIn && lastCheckIn.checkOutTime;
   
   const menuItems = [
     { name: 'POS', icon: ShoppingCart, path: '/pos', access: 'all' },
@@ -73,16 +80,21 @@ const HomePage = () => {
           <Card className="shadow-md">
             <CardContent className="p-6">
               <h2 className="text-lg font-semibold mb-4">Attendance</h2>
-              {checkInToday ? (
+              {hasCheckedInToday ? (
                 <>
                   <p>You checked in today.</p>
-                  {!checkOutToday && (
+                  {!hasCheckedOutToday && (
                     <Button onClick={handleCheckOut} className="bg-mir-red text-white mt-2">
                       Check Out
                     </Button>
                   )}
-                  {checkOutToday && (
-                    <p>You have already checked out today.</p>
+                  {hasCheckedOutToday && (
+                    <div className="mt-2">
+                      <p>You have already checked out from your last shift.</p>
+                      <Button onClick={handleCheckIn} className="bg-mir-red text-white mt-2">
+                        Start New Shift
+                      </Button>
+                    </div>
                   )}
                 </>
               ) : (

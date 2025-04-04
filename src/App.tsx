@@ -8,12 +8,12 @@ import NotFound from "./pages/NotFound";
 
 // Context Providers
 import { AuthProvider } from "./contexts/AuthContext";
-import { CartProvider } from "./contexts/CartContext";
-import { CustomerProvider } from "./contexts/CustomerContext";
-import { InventoryProvider } from "./contexts/InventoryContext";
-import { MenuProvider } from "./contexts/MenuContext";
-import { OrderProvider } from "./contexts/OrderContext";
 import { AttendanceProvider } from "./contexts/AttendanceContext";
+import { MenuProvider } from "./contexts/MenuContext";
+import { InventoryProvider } from "./contexts/InventoryContext";
+import { CustomerProvider } from "./contexts/CustomerContext";
+import { CartProvider } from "./contexts/CartContext";
+import { OrderProvider } from "./contexts/OrderContext";
 
 // Pages
 import HomePage from "./pages/HomePage";
@@ -42,12 +42,12 @@ const App = () => (
   <BrowserRouter>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <MenuProvider>
-          <InventoryProvider>
-            <CustomerProvider>
-              <CartProvider>
-                <OrderProvider>
-                  <AttendanceProvider>
+        <AttendanceProvider>
+          <MenuProvider>
+            <InventoryProvider>
+              <CustomerProvider>
+                <CartProvider>
+                  <OrderProvider>
                     <TooltipProvider>
                       <Toaster />
                       <Sonner />
@@ -75,12 +75,12 @@ const App = () => (
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </TooltipProvider>
-                  </AttendanceProvider>
-                </OrderProvider>
-              </CartProvider>
-            </CustomerProvider>
-          </InventoryProvider>
-        </MenuProvider>
+                  </OrderProvider>
+                </CartProvider>
+              </CustomerProvider>
+            </InventoryProvider>
+          </MenuProvider>
+        </AttendanceProvider>
       </AuthProvider>
     </QueryClientProvider>
   </BrowserRouter>
