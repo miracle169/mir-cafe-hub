@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
@@ -44,7 +43,6 @@ const StaffManagementPage = () => {
       return;
     }
 
-    // Check if name already exists
     if (staffMembers.some(staff => staff.name.toLowerCase() === newStaffName.toLowerCase())) {
       toast({
         title: 'Error',
@@ -95,7 +93,6 @@ const StaffManagementPage = () => {
       return;
     }
 
-    // Check if name already exists (excluding the current staff being edited)
     if (staffMembers.some(
       staff => staff.id !== editingStaff.id && 
       staff.name.toLowerCase() === editingStaff.name.toLowerCase()
@@ -132,7 +129,6 @@ const StaffManagementPage = () => {
       return;
     }
 
-    // Update the staff password in your AuthContext
     updateStaffMember(passwordStaff.id, passwordStaff.name, 
       staffMembers.find(staff => staff.id === passwordStaff.id)?.role || 'staff',
       passwordStaff.password);

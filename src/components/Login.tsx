@@ -8,12 +8,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
+import StaffLoginDialog from './Login/StaffLoginDialog';
 
 const Login = () => {
   // Login state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isStaffLoginOpen, setIsStaffLoginOpen] = useState(false);
   
   // Signup state
   const [signupName, setSignupName] = useState('');
@@ -22,10 +24,10 @@ const Login = () => {
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   const [isSigningUp, setIsSigningUp] = useState(false);
   
-  const { login, addStaffMember, staffLogin } = useAuth();
+  const { login, addStaffMember } = useAuth();
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
@@ -37,16 +39,17 @@ const Login = () => {
       });
       
       if (error) {
-        // If Supabase login fails, try staff login
-        const result = await staffLogin(email, password);
-        
-        if (!result.success) {
-          toast({
-            title: "Login Failed",
-            description: result.error || "Please check your credentials and try again",
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "Login Failed",
+          description: error.message || "Please check your credentials and try again",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Login Successful",
+          description: "Welcome back!",
+          duration: 1000,
+        });
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -93,7 +96,7 @@ const Login = () => {
         options: {
           data: {
             name: signupName,
-            role: 'staff',
+            role: 'owner',
           }
         }
       });
@@ -103,7 +106,7 @@ const Login = () => {
       }
       
       // Then add the staff member to our local staff list
-      addStaffMember(signupName, 'staff', signupPassword);
+      addStaffMember(signupName, 'owner', signupPassword);
       
       toast({
         title: "Account Created",
@@ -143,13 +146,14 @@ const Login = () => {
           </TabsList>
           
           <TabsContent value="login">
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleEmailLogin}>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email or Username</Label>
+                  <Label htmlFor="email">Email</Label>
                   <Input 
                     id="email" 
-                    placeholder="Enter your email or username"
+                    type="email"
+                    placeholder="Enter your email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -172,9 +176,17 @@ const Login = () => {
                   <p>Staff: staff@mircafe.com / staff123</p>
                 </div>
               </CardContent>
-              <CardFooter>
+              <CardFooter className="flex flex-col space-y-2">
                 <Button className="w-full bg-mir-red hover:bg-mir-red/90" type="submit" disabled={isLoading}>
-                  {isLoading ? 'Signing in...' : 'Sign In'}
+                  {isLoading ? 'Signing in...' : 'Sign In as Owner'}
+                </Button>
+                <Button 
+                  className="w-full" 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setIsStaffLoginOpen(true)}
+                >
+                  Staff Login
                 </Button>
               </CardFooter>
             </form>
@@ -230,13 +242,19 @@ const Login = () => {
               </CardContent>
               <CardFooter>
                 <Button className="w-full bg-mir-red hover:bg-mir-red/90" type="submit" disabled={isSigningUp}>
-                  {isSigningUp ? 'Creating Account...' : 'Create Account'}
+                  {isSigningUp ? 'Creating Account...' : 'Sign Up as Owner'}
                 </Button>
               </CardFooter>
             </form>
           </TabsContent>
         </Tabs>
       </Card>
+
+      {/* Staff Login Dialog */}
+      <StaffLoginDialog 
+        open={isStaffLoginOpen} 
+        onOpenChange={setIsStaffLoginOpen} 
+      />
     </div>
   );
 };
