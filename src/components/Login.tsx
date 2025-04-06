@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,22 @@ const Login = () => {
   
   const { login, addStaffMember } = useAuth();
   const { toast } = useToast();
+
+  // Check for auth in URL (for when redirected back after email confirmation)
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (data?.session) {
+        toast({
+          title: "Already logged in",
+          description: "You're already signed in",
+          duration: 1000,
+        });
+      }
+    };
+
+    checkSession();
+  }, [toast]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +105,7 @@ const Login = () => {
     }
     
     try {
-      // First, try to create a Supabase auth account
+      // Create a Supabase auth account with autoconfirm
       const { data, error } = await supabase.auth.signUp({
         email: signupEmail,
         password: signupPassword,
@@ -97,7 +113,8 @@ const Login = () => {
           data: {
             name: signupName,
             role: 'owner',
-          }
+          },
+          emailRedirectTo: window.location.origin
         }
       });
 
@@ -105,12 +122,12 @@ const Login = () => {
         throw error;
       }
       
-      // Then add the staff member to our local staff list
+      // Add the staff member to our local staff list
       addStaffMember(signupName, 'owner', signupPassword);
       
       toast({
         title: "Account Created",
-        description: "Your account has been created. You can now log in.",
+        description: "Your account has been created successfully. You can now log in.",
         duration: 3000,
       });
       
