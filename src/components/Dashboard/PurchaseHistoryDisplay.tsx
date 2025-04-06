@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,6 +39,7 @@ interface ItemSummary {
   totalAmount: number;
 }
 
+// Updated interfaces to match the actual structure from Supabase
 interface PurchaseResponse {
   id: string;
   date: string;
@@ -103,7 +105,7 @@ const PurchaseHistoryDisplay = () => {
       if (purchasesError) throw purchasesError;
       
       const purchasesWithItems = await Promise.all(
-        purchasesData.map(async (purchase: PurchaseResponse) => {
+        (purchasesData as any[]).map(async (purchase) => {
           const { data: itemsData, error: itemsError } = await supabase
             .from('purchase_items')
             .select(`
@@ -125,7 +127,7 @@ const PurchaseHistoryDisplay = () => {
             total_amount: purchase.total_amount,
             money_received: purchase.money_received,
             balance: purchase.balance,
-            items: itemsData.map((item: PurchaseItemResponse) => ({
+            items: (itemsData as any[]).map(item => ({
               name: item.inventory_items?.name || 'Unknown Item',
               quantity: item.quantity,
               unit_price: item.unit_price,
