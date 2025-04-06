@@ -108,13 +108,13 @@ const PurchaseHistoryDisplay = () => {
           return {
             id: purchase.id,
             date: purchase.date,
-            staff_name: (purchase.staff as StaffResponse).name,
+            staff_name: purchase.staff?.name || 'Unknown',
             staff_id: purchase.staff_id,
             total_amount: purchase.total_amount,
             money_received: purchase.money_received,
             balance: purchase.balance,
             items: itemsData.map(item => ({
-              name: (item.inventory_items as InventoryItemResponse).name,
+              name: item.inventory_items?.name || 'Unknown Item',
               quantity: item.quantity,
               unit_price: item.unit_price,
               total: item.quantity * item.unit_price
