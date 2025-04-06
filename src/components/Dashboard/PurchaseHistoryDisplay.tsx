@@ -38,6 +38,14 @@ interface ItemSummary {
   totalAmount: number;
 }
 
+interface StaffResponse {
+  name: string;
+}
+
+interface InventoryItemResponse {
+  name: string;
+}
+
 const PurchaseHistoryDisplay = () => {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [filteredPurchases, setFilteredPurchases] = useState<Purchase[]>([]);
@@ -74,7 +82,7 @@ const PurchaseHistoryDisplay = () => {
           money_received,
           balance,
           staff_id,
-          staff!inner (
+          staff:staff_id (
             name
           )
         `)
@@ -89,7 +97,7 @@ const PurchaseHistoryDisplay = () => {
             .select(`
               quantity,
               unit_price,
-              inventory_items!inner (
+              inventory_items:item_id (
                 name
               )
             `)
@@ -100,13 +108,13 @@ const PurchaseHistoryDisplay = () => {
           return {
             id: purchase.id,
             date: purchase.date,
-            staff_name: purchase.staff.name,
+            staff_name: (purchase.staff as StaffResponse).name,
             staff_id: purchase.staff_id,
             total_amount: purchase.total_amount,
             money_received: purchase.money_received,
             balance: purchase.balance,
             items: itemsData.map(item => ({
-              name: item.inventory_items.name,
+              name: (item.inventory_items as InventoryItemResponse).name,
               quantity: item.quantity,
               unit_price: item.unit_price,
               total: item.quantity * item.unit_price
