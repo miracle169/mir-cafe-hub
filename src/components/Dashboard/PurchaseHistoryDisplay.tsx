@@ -38,12 +38,24 @@ interface ItemSummary {
   totalAmount: number;
 }
 
-interface StaffResponse {
-  name: string;
+interface PurchaseResponse {
+  id: string;
+  date: string;
+  total_amount: number;
+  money_received: number;
+  balance: number;
+  staff_id: string;
+  staff: {
+    name: string;
+  } | null;
 }
 
-interface InventoryItemResponse {
-  name: string;
+interface PurchaseItemResponse {
+  quantity: number;
+  unit_price: number;
+  inventory_items: {
+    name: string;
+  } | null;
 }
 
 const PurchaseHistoryDisplay = () => {
@@ -91,7 +103,7 @@ const PurchaseHistoryDisplay = () => {
       if (purchasesError) throw purchasesError;
       
       const purchasesWithItems = await Promise.all(
-        purchasesData.map(async (purchase) => {
+        purchasesData.map(async (purchase: PurchaseResponse) => {
           const { data: itemsData, error: itemsError } = await supabase
             .from('purchase_items')
             .select(`
@@ -113,7 +125,7 @@ const PurchaseHistoryDisplay = () => {
             total_amount: purchase.total_amount,
             money_received: purchase.money_received,
             balance: purchase.balance,
-            items: itemsData.map(item => ({
+            items: itemsData.map((item: PurchaseItemResponse) => ({
               name: item.inventory_items?.name || 'Unknown Item',
               quantity: item.quantity,
               unit_price: item.unit_price,
