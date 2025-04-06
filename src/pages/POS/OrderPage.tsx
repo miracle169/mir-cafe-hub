@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { useCart } from '@/contexts/CartContext';
@@ -17,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Check, Printer } from 'lucide-react';
 import { printKOT, printBill, connectPrinter, isPrinterConnected } from '@/utils/printing';
 import { useToast } from '@/hooks/use-toast';
+import { checkSupabaseConnection } from '@/integrations/supabase/client';
 
 const OrderPage = () => {
   const navigate = useNavigate();
@@ -34,6 +34,25 @@ const OrderPage = () => {
   const [upiAmount, setUpiAmount] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [printerConnected, setPrinterConnected] = useState<boolean>(isPrinterConnected());
+  const [connectionStatus, setConnectionStatus] = useState<boolean>(true);
+  
+  // Check database connection
+  useEffect(() => {
+    const checkConnection = async () => {
+      const isConnected = await checkSupabaseConnection();
+      setConnectionStatus(isConnected);
+      if (!isConnected) {
+        toast({
+          title: 'Database Connection Error',
+          description: 'Cannot connect to the database. Some features may not work.',
+          variant: 'destructive',
+          duration: 3000,
+        });
+      }
+    };
+    
+    checkConnection();
+  }, [toast]);
   
   // Calculate discount from cart context
   const discount = totalAmount - cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -108,6 +127,17 @@ const OrderPage = () => {
 
     try {
       setIsProcessing(true);
+      
+      if (!connectionStatus) {
+        toast({
+          title: 'Database Connection Error',
+          description: 'Unable to connect to database. Please try again later.',
+          variant: 'destructive',
+          duration: 3000,
+        });
+        setIsProcessing(false);
+        return;
+      }
 
       let staffId = '';
       let staffName = '';
@@ -115,6 +145,15 @@ const OrderPage = () => {
       if (currentUser) {
         staffId = currentUser.id;
         staffName = currentUser.name;
+      } else {
+        // Fallback to demo values if no user is logged in
+        staffId = '12345';
+        staffName = 'Demo Staff';
+        toast({
+          title: 'Using Demo Mode',
+          description: 'No staff logged in. Using demo credentials.',
+          duration: 2000,
+        });
       }
 
       // Create the order
@@ -163,18 +202,23 @@ const OrderPage = () => {
       console.error('Error placing order:', error);
       toast({
         title: 'Order Failed',
-        description: 'Failed to place order',
+        description: 'Failed to place order: ' + (error.message || 'Unknown error'),
         variant: 'destructive',
-        duration: 1000,
+        duration: 3000,
       });
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // If cart is empty, redirect to POS
+  // If cart is empty and not processing, redirect to POS
+  useEffect(() => {
+    if (!isProcessing && (!cart || cart.length === 0)) {
+      navigate('/pos');
+    }
+  }, [cart, isProcessing, navigate]);
+
   if (!cart || cart.length === 0) {
-    navigate('/pos');
     return null;
   }
 
@@ -257,6 +301,7 @@ const OrderPage = () => {
           </CardContent>
         </Card>
 
+        {/* Rest of the components remain the same */}
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>Additional Notes</CardTitle>

@@ -1,45 +1,45 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
-// Define the attendance record type
-export interface AttendanceRecord {
+// Attendance record interface
+interface AttendanceRecord {
   id: string;
   staffId: string;
-  staffName: string;
+  staffName?: string;
   date: string;
   checkInTime: string;
-  checkOutTime?: string;
+  checkOutTime: string | null;
 }
 
-// Define the cash register entry type
-export interface CashRegisterEntry {
+// Cash register entry interface
+interface CashRegisterEntry {
   id: string;
   staffId: string;
-  staffName: string;
+  staffName?: string;
   date: string;
   openingAmount: number;
-  closingAmount?: number;
-  reason?: string;
+  closingAmount: number | null;
+  reason: string | null;
 }
 
-// Define the context type
+// Context type
 interface AttendanceContextType {
   attendanceRecords: AttendanceRecord[];
   cashRegisterEntries: CashRegisterEntry[];
-  addAttendanceRecord: (staffId: string, checkIn: boolean) => Promise<void>;
-  getAttendanceForDate: (date: string) => AttendanceRecord[];
-  getAttendanceForStaff: (staffId: string) => AttendanceRecord[];
-  getAttendanceForToday: (staffId: string) => AttendanceRecord[];
-  checkIn: (staffId: string) => Promise<void>;
-  checkOut: (staffId: string) => Promise<void>;
-  getEntriesByDate: (date: string) => AttendanceRecord[];
-  getPresentStaff: () => AttendanceRecord[];
-  registerOpeningCash: (staffId: string, staffName: string, amount: number, reason?: string) => Promise<void>;
-  registerClosingCash: (staffId: string, amount: number) => Promise<void>;
-  getTodayCashRegister: (staffId: string) => CashRegisterEntry | null;
-  entries: AttendanceRecord[];
+  todayAttendance: AttendanceRecord[];
+  checkIn: () => Promise<void>;
+  checkOut: (attendanceId: string) => Promise<void>;
+  openCashRegister: (amount: number) => Promise<void>;
+  closeCashRegister: (id: string, amount: number, reason?: string) => Promise<void>;
+  todayCashRegister: CashRegisterEntry | null;
+  isCheckedIn: () => boolean;
+  isCashRegisterOpen: () => boolean;
+  fetchAttendanceRecords: () => Promise<void>;
+  fetchCashRegisterEntries: () => Promise<void>;
+  getLatestCheckIn: () => AttendanceRecord | null;
 }
 
 // Create the context
@@ -49,297 +49,356 @@ const AttendanceContext = createContext<AttendanceContextType | undefined>(undef
 export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [cashRegisterEntries, setCashRegisterEntries] = useState<CashRegisterEntry[]>([]);
+  const { currentUser } = useAuth();
   const { toast } = useToast();
 
-  // Fetch attendance records on mount
+  // Load from Supabase on mount and when user changes
   useEffect(() => {
-    fetchAttendanceRecords();
-    fetchCashRegisterEntries();
-  }, []);
+    if (currentUser) {
+      fetchAttendanceRecords();
+      fetchCashRegisterEntries();
+    }
+  }, [currentUser]);
 
-  // Fetch attendance records from the database
+  // Fetch attendance records from Supabase
   const fetchAttendanceRecords = async () => {
     try {
       const { data, error } = await supabase
         .from('attendance')
-        .select('*, staff(name)')
+        .select(`
+          id,
+          staff_id,
+          date,
+          check_in_time,
+          check_out_time
+        `)
         .order('date', { ascending: false });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      if (data) {
-        setAttendanceRecords(data.map(record => ({
-          id: record.id,
-          staffId: record.staff_id,
-          staffName: record.staff?.name || 'Unknown',
-          date: record.date,
-          checkInTime: record.check_in_time,
-          checkOutTime: record.check_out_time
-        })));
-      }
+      const formattedData = await Promise.all(
+        data.map(async (record) => {
+          // Get staff name for each record
+          const { data: staffData, error: staffError } = await supabase
+            .from('staff')
+            .select('name')
+            .eq('id', record.staff_id)
+            .single();
+
+          if (staffError) console.error('Error fetching staff name:', staffError);
+
+          return {
+            id: record.id,
+            staffId: record.staff_id,
+            staffName: staffData?.name || 'Unknown',
+            date: record.date,
+            checkInTime: record.check_in_time,
+            checkOutTime: record.check_out_time,
+          };
+        })
+      );
+
+      setAttendanceRecords(formattedData);
     } catch (error) {
       console.error('Error fetching attendance records:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch attendance records',
+        variant: 'destructive',
+        duration: 1000,
+      });
     }
   };
-  
-  // Fetch cash register entries from the database
+
+  // Fetch cash register entries from Supabase
   const fetchCashRegisterEntries = async () => {
     try {
       const { data, error } = await supabase
         .from('cash_register')
-        .select('*, staff(name)')
+        .select(`
+          id,
+          staff_id,
+          date,
+          opening_amount,
+          closing_amount,
+          reason
+        `)
         .order('date', { ascending: false });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      if (data) {
-        setCashRegisterEntries(data.map(record => ({
-          id: record.id,
-          staffId: record.staff_id,
-          staffName: record.staff?.name || 'Unknown',
-          date: record.date,
-          openingAmount: record.opening_amount,
-          closingAmount: record.closing_amount,
-          reason: record.reason
-        })));
-      }
+      const formattedData = await Promise.all(
+        data.map(async (entry) => {
+          // Get staff name for each entry
+          const { data: staffData, error: staffError } = await supabase
+            .from('staff')
+            .select('name')
+            .eq('id', entry.staff_id)
+            .single();
+
+          if (staffError) console.error('Error fetching staff name:', staffError);
+
+          return {
+            id: entry.id,
+            staffId: entry.staff_id,
+            staffName: staffData?.name || 'Unknown',
+            date: entry.date,
+            openingAmount: entry.opening_amount,
+            closingAmount: entry.closing_amount,
+            reason: entry.reason,
+          };
+        })
+      );
+
+      setCashRegisterEntries(formattedData);
     } catch (error) {
       console.error('Error fetching cash register entries:', error);
-    }
-  };
-
-  // Add a new attendance record
-  const addAttendanceRecord = async (staffId: string, checkIn: boolean) => {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const now = new Date().toISOString();
-
-      if (checkIn) {
-        // Add check-in record
-        const { error } = await supabase
-          .from('attendance')
-          .insert({
-            staff_id: staffId,
-            date: today,
-            check_in_time: now
-          });
-
-        if (error) throw error;
-      } else {
-        // Find the latest check-in record for this staff member that doesn't have a check-out time
-        const todayRecords = getAttendanceForToday(staffId);
-        const latestCheckIn = todayRecords.length > 0 ? 
-          todayRecords[todayRecords.length - 1] : null;
-
-        if (latestCheckIn && !latestCheckIn.checkOutTime) {
-          // Update the existing record with check-out time
-          const { error } = await supabase
-            .from('attendance')
-            .update({ check_out_time: now })
-            .eq('id', latestCheckIn.id);
-
-          if (error) throw error;
-        } else {
-          // Create a new record with both check-in and check-out times
-          const { error } = await supabase
-            .from('attendance')
-            .insert({
-              staff_id: staffId,
-              date: today,
-              check_in_time: now,
-              check_out_time: now
-            });
-
-          if (error) throw error;
-        }
-      }
-
-      // Refresh attendance records
-      await fetchAttendanceRecords();
-
-    } catch (error) {
-      console.error('Error recording attendance:', error);
-      throw error;
-    }
-  };
-
-  // Check in
-  const checkIn = async (staffId: string) => {
-    try {
-      await addAttendanceRecord(staffId, true);
       toast({
-        title: "Checked In",
-        description: `You have checked in at ${new Date().toLocaleTimeString()}`,
+        title: 'Error',
+        description: 'Failed to fetch cash register entries',
+        variant: 'destructive',
+        duration: 1000,
+      });
+    }
+  };
+
+  // Get attendance records for today
+  const todayAttendance = attendanceRecords.filter(
+    (record) => record.date === new Date().toISOString().split('T')[0] && 
+                record.staffId === currentUser?.id
+  );
+
+  // Check if the current user is checked in
+  const isCheckedIn = () => {
+    // User is checked in if there's any record for today that doesn't have a check out time
+    return todayAttendance.some(record => !record.checkOutTime);
+  };
+
+  // Get the latest check in record for the current user (without a check out time)
+  const getLatestCheckIn = () => {
+    const openCheckIns = todayAttendance.filter(record => !record.checkOutTime);
+    if (openCheckIns.length === 0) return null;
+    
+    // Sort by check in time descending and return the first one
+    return openCheckIns.sort((a, b) => 
+      new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime()
+    )[0];
+  };
+
+  // Check in the current user
+  const checkIn = async () => {
+    if (!currentUser) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to check in',
+        variant: 'destructive',
+        duration: 1000,
+      });
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const date = now.toISOString().split('T')[0];
+      const checkInTime = now.toISOString();
+
+      const { data, error } = await supabase
+        .from('attendance')
+        .insert({
+          staff_id: currentUser.id,
+          date,
+          check_in_time: checkInTime,
+        })
+        .select();
+
+      if (error) throw error;
+
+      const newRecord: AttendanceRecord = {
+        id: data[0].id,
+        staffId: data[0].staff_id,
+        staffName: currentUser.name,
+        date: data[0].date,
+        checkInTime: data[0].check_in_time,
+        checkOutTime: data[0].check_out_time,
+      };
+
+      setAttendanceRecords([newRecord, ...attendanceRecords]);
+
+      toast({
+        title: 'Checked In',
+        description: `Successfully checked in at ${new Date(checkInTime).toLocaleTimeString()}`,
         duration: 1000,
       });
     } catch (error) {
       console.error('Error checking in:', error);
       toast({
-        title: "Check-in Failed",
-        description: "Failed to record check-in",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to check in',
+        variant: 'destructive',
         duration: 1000,
       });
-      throw error;
     }
   };
 
-  // Check out
-  const checkOut = async (staffId: string) => {
+  // Check out the current user for a specific attendance record
+  const checkOut = async (attendanceId: string) => {
     try {
-      await addAttendanceRecord(staffId, false);
+      const now = new Date();
+      const checkOutTime = now.toISOString();
+
+      const { error } = await supabase
+        .from('attendance')
+        .update({
+          check_out_time: checkOutTime,
+        })
+        .eq('id', attendanceId);
+
+      if (error) throw error;
+
+      setAttendanceRecords(
+        attendanceRecords.map((record) =>
+          record.id === attendanceId
+            ? { ...record, checkOutTime }
+            : record
+        )
+      );
+
       toast({
-        title: "Checked Out",
-        description: `You have checked out at ${new Date().toLocaleTimeString()}`,
+        title: 'Checked Out',
+        description: `Successfully checked out at ${new Date(checkOutTime).toLocaleTimeString()}`,
         duration: 1000,
       });
     } catch (error) {
       console.error('Error checking out:', error);
       toast({
-        title: "Check-out Failed",
-        description: "Failed to record check-out",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to check out',
+        variant: 'destructive',
         duration: 1000,
       });
-      throw error;
     }
   };
 
-  // Register opening cash
-  const registerOpeningCash = async (staffId: string, staffName: string, amount: number, reason?: string) => {
+  // Get the cash register entry for today
+  const todayCashRegister = cashRegisterEntries.find(
+    (entry) => 
+      entry.date === new Date().toISOString().split('T')[0] && 
+      entry.staffId === currentUser?.id &&
+      entry.closingAmount === null
+  ) || null;
+
+  // Check if the cash register is open
+  const isCashRegisterOpen = () => {
+    return todayCashRegister !== null;
+  };
+
+  // Open the cash register
+  const openCashRegister = async (amount: number) => {
+    if (!currentUser) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to open the cash register',
+        variant: 'destructive',
+        duration: 1000,
+      });
+      return;
+    }
+
     try {
-      const today = new Date().toISOString().split('T')[0];
-      
-      const { error } = await supabase
+      const now = new Date();
+      const date = now.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
         .from('cash_register')
         .insert({
-          staff_id: staffId,
-          date: today,
+          staff_id: currentUser.id,
+          date,
           opening_amount: amount,
-          reason: reason || null
-        });
+        })
+        .select();
 
       if (error) throw error;
-      
-      // Refresh cash register entries
-      await fetchCashRegisterEntries();
-      
+
+      const newEntry: CashRegisterEntry = {
+        id: data[0].id,
+        staffId: data[0].staff_id,
+        staffName: currentUser.name,
+        date: data[0].date,
+        openingAmount: data[0].opening_amount,
+        closingAmount: data[0].closing_amount,
+        reason: data[0].reason,
+      };
+
+      setCashRegisterEntries([newEntry, ...cashRegisterEntries]);
+
       toast({
-        title: "Cash Register Opened",
-        description: `Opening amount: ₹${amount.toFixed(2)}`,
+        title: 'Cash Register Opened',
+        description: `Successfully opened cash register with ₹${amount}`,
         duration: 1000,
       });
     } catch (error) {
-      console.error('Error registering opening cash:', error);
+      console.error('Error opening cash register:', error);
       toast({
-        title: "Error",
-        description: "Failed to register opening cash",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to open cash register',
+        variant: 'destructive',
         duration: 1000,
       });
-      throw error;
     }
   };
 
-  // Register closing cash
-  const registerClosingCash = async (staffId: string, amount: number) => {
+  // Close the cash register
+  const closeCashRegister = async (id: string, amount: number, reason?: string) => {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      
-      // Find today's register entry for this staff
-      const todayEntry = getTodayCashRegister(staffId);
-      
-      if (!todayEntry) {
-        throw new Error("No opening cash registered for today");
-      }
-      
       const { error } = await supabase
         .from('cash_register')
-        .update({ closing_amount: amount })
-        .eq('id', todayEntry.id);
+        .update({
+          closing_amount: amount,
+          reason: reason || null,
+        })
+        .eq('id', id);
 
       if (error) throw error;
-      
-      // Refresh cash register entries
-      await fetchCashRegisterEntries();
-      
+
+      setCashRegisterEntries(
+        cashRegisterEntries.map((entry) =>
+          entry.id === id
+            ? { ...entry, closingAmount: amount, reason: reason || null }
+            : entry
+        )
+      );
+
       toast({
-        title: "Cash Register Closed",
-        description: `Closing amount: ₹${amount.toFixed(2)}`,
+        title: 'Cash Register Closed',
+        description: `Successfully closed cash register with ₹${amount}`,
         duration: 1000,
       });
     } catch (error) {
-      console.error('Error registering closing cash:', error);
+      console.error('Error closing cash register:', error);
       toast({
-        title: "Error",
-        description: "Failed to register closing cash",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to close cash register',
+        variant: 'destructive',
         duration: 1000,
       });
-      throw error;
     }
   };
 
-  // Get attendance records for a specific date
-  const getAttendanceForDate = (date: string) => {
-    return attendanceRecords.filter(record => record.date === date);
-  };
-
-  // Get attendance records for a specific staff member
-  const getAttendanceForStaff = (staffId: string) => {
-    return attendanceRecords.filter(record => record.staffId === staffId);
-  };
-
-  // Get today's attendance records for a specific staff member
-  const getAttendanceForToday = (staffId: string) => {
-    const today = new Date().toISOString().split('T')[0];
-    return attendanceRecords.filter(
-      record => record.staffId === staffId && record.date === today
-    );
-  };
-  
-  // Get today's cash register entry for a specific staff member
-  const getTodayCashRegister = (staffId: string): CashRegisterEntry | null => {
-    const today = new Date().toISOString().split('T')[0];
-    const todayEntry = cashRegisterEntries.find(
-      entry => entry.staffId === staffId && entry.date === today
-    );
-    
-    return todayEntry || null;
-  };
-  
-  // Get entries by date
-  const getEntriesByDate = (date: string) => {
-    return attendanceRecords.filter(record => record.date === date);
-  };
-  
-  // Get present staff for today
-  const getPresentStaff = () => {
-    const today = new Date().toISOString().split('T')[0];
-    return attendanceRecords.filter(
-      record => record.date === today && !record.checkOutTime
-    );
-  };
-
+  // Context value
   const value = {
     attendanceRecords,
     cashRegisterEntries,
-    addAttendanceRecord,
-    getAttendanceForDate,
-    getAttendanceForStaff,
-    getAttendanceForToday,
+    todayAttendance,
     checkIn,
     checkOut,
-    getEntriesByDate,
-    getPresentStaff,
-    registerOpeningCash,
-    registerClosingCash,
-    getTodayCashRegister,
-    entries: attendanceRecords,
+    openCashRegister,
+    closeCashRegister,
+    todayCashRegister,
+    isCheckedIn,
+    isCashRegisterOpen,
+    fetchAttendanceRecords,
+    fetchCashRegisterEntries,
+    getLatestCheckIn,
   };
 
   return <AttendanceContext.Provider value={value}>{children}</AttendanceContext.Provider>;

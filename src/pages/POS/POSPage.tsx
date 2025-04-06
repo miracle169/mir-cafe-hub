@@ -22,6 +22,12 @@ const POSPage = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showCategoryItems, setShowCategoryItems] = useState(false);
 
+  // Ensure proper menu items format for debugging
+  useEffect(() => {
+    console.log("Menu items loaded:", menuItems);
+    console.log("Categories loaded:", categories);
+  }, [menuItems, categories]);
+
   // Handle adding item to cart
   const handleAddItem = (item) => {
     if (!cart) {
@@ -197,7 +203,7 @@ const POSPage = () => {
                             </div>
                             <Badge variant="outline" className="text-xs">
                               <Tag className="h-3 w-3 mr-1" />
-                              {categories && categories.find(c => c.id === item.category)?.name || 'Uncategorized'}
+                              {getCategoryName(item.category) || 'Uncategorized'}
                             </Badge>
                           </div>
                           <Button 

@@ -10,6 +10,18 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true, // Enable automatic session detection in URL
+    detectSessionInUrl: true,
   }
 });
+
+// Helper function to check connection
+export const checkSupabaseConnection = async () => {
+  try {
+    // Simple test query to check if the connection works
+    const { data, error } = await supabase.from('staff').select('id').limit(1);
+    return !error;
+  } catch (e) {
+    console.error("Supabase connection test failed:", e);
+    return false;
+  }
+};

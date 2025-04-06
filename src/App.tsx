@@ -36,7 +36,14 @@ import ReceiptsPage from "./pages/Receipts/ReceiptsPage";
 import CustomersPage from "./pages/Customers/CustomersPage";
 import ProductsPage from "./pages/Products/ProductsPage";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30000,
+    },
+  },
+});
 
 // Ensuring correct provider nesting order to avoid dependency issues
 const App = () => (
