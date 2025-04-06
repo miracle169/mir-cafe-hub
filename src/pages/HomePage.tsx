@@ -52,7 +52,7 @@ const HomePage = () => {
   const handleCheckIn = async () => {
     if (currentUser) {
       try {
-        await checkIn(currentUser.id);
+        await checkIn(); // Call checkIn without arguments
       } catch (error) {
         console.error("Failed to check in:", error);
       }
@@ -62,7 +62,7 @@ const HomePage = () => {
   const handleCheckOut = async () => {
     if (currentUser) {
       try {
-        await checkOut(currentUser.id);
+        await checkOut(); // Call checkOut without arguments
       } catch (error) {
         console.error("Failed to check out:", error);
       }

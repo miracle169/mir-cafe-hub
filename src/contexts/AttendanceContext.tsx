@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
@@ -30,8 +29,8 @@ interface AttendanceContextType {
   attendanceRecords: AttendanceRecord[];
   cashRegisterEntries: CashRegisterEntry[];
   todayAttendance: AttendanceRecord[];
-  checkIn: () => Promise<void>;
-  checkOut: (attendanceId: string) => Promise<void>;
+  checkIn: (staffId?: string) => Promise<void>;
+  checkOut: (staffId?: string, attendanceId?: string) => Promise<void>;
   openCashRegister: (amount: number) => Promise<void>;
   closeCashRegister: (id: string, amount: number, reason?: string) => Promise<void>;
   todayCashRegister: CashRegisterEntry | null;
@@ -40,6 +39,12 @@ interface AttendanceContextType {
   fetchAttendanceRecords: () => Promise<void>;
   fetchCashRegisterEntries: () => Promise<void>;
   getLatestCheckIn: () => AttendanceRecord | null;
+  registerOpeningCash: (staffId: string, staffName: string, amount: number, reason?: string) => Promise<void>;
+  registerClosingCash: (staffId: string, amount: number) => Promise<void>;
+  getTodayCashRegister: (staffId: string) => CashRegisterEntry | null;
+  getAttendanceForDate: (date: string) => AttendanceRecord[];
+  getAttendanceForToday: (staffId: string) => AttendanceRecord[];
+  getPresentStaff: () => { id: string; name: string; }[];
 }
 
 // Create the context
@@ -49,7 +54,7 @@ const AttendanceContext = createContext<AttendanceContextType | undefined>(undef
 export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [cashRegisterEntries, setCashRegisterEntries] = useState<CashRegisterEntry[]>([]);
-  const { currentUser } = useAuth();
+  const { currentUser, staffMembers } = useAuth();
   const { toast } = useToast();
 
   // Load from Supabase on mount and when user changes
@@ -185,12 +190,14 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     )[0];
   };
 
-  // Check in the current user
-  const checkIn = async () => {
-    if (!currentUser) {
+  // Check in the current user or specified staff member
+  const checkIn = async (staffId?: string) => {
+    const targetStaffId = staffId || currentUser?.id;
+    
+    if (!targetStaffId) {
       toast({
         title: 'Error',
-        description: 'You must be logged in to check in',
+        description: 'Staff information not available',
         variant: 'destructive',
         duration: 1000,
       });
@@ -201,11 +208,18 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       const now = new Date();
       const date = now.toISOString().split('T')[0];
       const checkInTime = now.toISOString();
+      
+      // Get staff name
+      let staffName = currentUser?.name || '';
+      if (staffId && staffId !== currentUser?.id) {
+        const staffMember = staffMembers?.find(staff => staff.id === staffId);
+        staffName = staffMember?.name || 'Unknown';
+      }
 
       const { data, error } = await supabase
         .from('attendance')
         .insert({
-          staff_id: currentUser.id,
+          staff_id: targetStaffId,
           date,
           check_in_time: checkInTime,
         })
@@ -216,7 +230,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       const newRecord: AttendanceRecord = {
         id: data[0].id,
         staffId: data[0].staff_id,
-        staffName: currentUser.name,
+        staffName: staffName,
         date: data[0].date,
         checkInTime: data[0].check_in_time,
         checkOutTime: data[0].check_out_time,
@@ -240,24 +254,56 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     }
   };
 
-  // Check out the current user for a specific attendance record
-  const checkOut = async (attendanceId: string) => {
+  // Check out the current user or specified staff member
+  const checkOut = async (staffId?: string, attendanceId?: string) => {
     try {
       const now = new Date();
       const checkOutTime = now.toISOString();
+      let targetAttendanceId = attendanceId;
+
+      // If no specific attendance record ID is provided, find the latest unchecked record for the staff
+      if (!targetAttendanceId) {
+        const targetStaffId = staffId || currentUser?.id;
+        if (!targetStaffId) {
+          toast({
+            title: 'Error',
+            description: 'Staff information not available',
+            variant: 'destructive',
+            duration: 1000,
+          });
+          return;
+        }
+
+        const todaysRecords = attendanceRecords.filter(
+          record => record.date === new Date().toISOString().split('T')[0] && record.staffId === targetStaffId
+        );
+
+        const uncheckedRecord = todaysRecords.find(record => !record.checkOutTime);
+        if (!uncheckedRecord) {
+          toast({
+            title: 'Error',
+            description: 'No open check-in found',
+            variant: 'destructive',
+            duration: 1000,
+          });
+          return;
+        }
+
+        targetAttendanceId = uncheckedRecord.id;
+      }
 
       const { error } = await supabase
         .from('attendance')
         .update({
           check_out_time: checkOutTime,
         })
-        .eq('id', attendanceId);
+        .eq('id', targetAttendanceId);
 
       if (error) throw error;
 
       setAttendanceRecords(
         attendanceRecords.map((record) =>
-          record.id === attendanceId
+          record.id === targetAttendanceId
             ? { ...record, checkOutTime }
             : record
         )
@@ -384,6 +430,121 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     }
   };
 
+  // Get attendance records for a specific date
+  const getAttendanceForDate = (date: string) => {
+    return attendanceRecords.filter(record => record.date === date);
+  };
+
+  // Get attendance records for today for a specific staff member
+  const getAttendanceForToday = (staffId: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    return attendanceRecords.filter(
+      record => record.date === today && record.staffId === staffId
+    );
+  };
+
+  // Get the list of staff members who are present today
+  const getPresentStaff = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const todayRecords = attendanceRecords.filter(record => record.date === today);
+    
+    // Get unique staff IDs who are checked in today
+    const presentStaffIds = [...new Set(todayRecords.map(record => record.staffId))];
+    
+    // Map to staff objects with id and name
+    return presentStaffIds.map(id => {
+      const record = todayRecords.find(r => r.staffId === id);
+      return {
+        id,
+        name: record?.staffName || 'Unknown'
+      };
+    });
+  };
+
+  // Register opening cash for a staff member
+  const registerOpeningCash = async (
+    staffId: string, 
+    staffName: string, 
+    amount: number, 
+    reason?: string
+  ) => {
+    try {
+      const now = new Date();
+      const date = now.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('cash_register')
+        .insert({
+          staff_id: staffId,
+          date,
+          opening_amount: amount,
+          reason: reason || null
+        })
+        .select();
+
+      if (error) throw error;
+
+      const newEntry: CashRegisterEntry = {
+        id: data[0].id,
+        staffId: data[0].staff_id,
+        staffName: staffName,
+        date: data[0].date,
+        openingAmount: data[0].opening_amount,
+        closingAmount: data[0].closing_amount,
+        reason: data[0].reason,
+      };
+
+      setCashRegisterEntries([newEntry, ...cashRegisterEntries]);
+    } catch (error) {
+      console.error('Error registering opening cash:', error);
+      throw error;
+    }
+  };
+
+  // Register closing cash for a staff member
+  const registerClosingCash = async (staffId: string, amount: number) => {
+    try {
+      // Find the open cash register entry for the staff member
+      const openEntry = cashRegisterEntries.find(
+        entry => entry.staffId === staffId && 
+                entry.date === new Date().toISOString().split('T')[0] && 
+                entry.closingAmount === null
+      );
+
+      if (!openEntry) {
+        throw new Error('No open cash register entry found');
+      }
+
+      const { error } = await supabase
+        .from('cash_register')
+        .update({
+          closing_amount: amount,
+        })
+        .eq('id', openEntry.id);
+
+      if (error) throw error;
+
+      setCashRegisterEntries(
+        cashRegisterEntries.map((entry) =>
+          entry.id === openEntry.id
+            ? { ...entry, closingAmount: amount }
+            : entry
+        )
+      );
+    } catch (error) {
+      console.error('Error registering closing cash:', error);
+      throw error;
+    }
+  };
+
+  // Get the cash register entry for today for a specific staff member
+  const getTodayCashRegister = (staffId: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    return cashRegisterEntries.find(
+      entry => entry.date === today && entry.staffId === staffId
+    ) || null;
+  };
+
   // Context value
   const value = {
     attendanceRecords,
@@ -399,6 +560,12 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     fetchAttendanceRecords,
     fetchCashRegisterEntries,
     getLatestCheckIn,
+    registerOpeningCash,
+    registerClosingCash,
+    getTodayCashRegister,
+    getAttendanceForDate,
+    getAttendanceForToday,
+    getPresentStaff,
   };
 
   return <AttendanceContext.Provider value={value}>{children}</AttendanceContext.Provider>;
