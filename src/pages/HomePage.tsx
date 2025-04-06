@@ -14,10 +14,10 @@ const HomePage = () => {
   const { getAttendanceForToday, checkIn, checkOut } = useAttendance();
   
   // Get today's attendance records for the current user
-  const todayAttendance = currentUser ? getAttendanceForToday(currentUser.id) : [];
+  const todayAttendance = currentUser ? getAttendanceForToday() : [];
   const hasCheckedInToday = todayAttendance.length > 0;
   const lastCheckIn = todayAttendance[todayAttendance.length - 1];
-  const hasCheckedOutToday = lastCheckIn && lastCheckIn.checkOutTime;
+  const hasCheckedOutLastSession = lastCheckIn && lastCheckIn.checkOutTime;
   
   const menuItems = [
     { name: 'POS', icon: ShoppingCart, path: '/pos', access: 'all' },
@@ -29,6 +29,7 @@ const HomePage = () => {
     { name: 'Attendance', icon: Calendar, path: '/attendance', access: 'owner' },
     { name: 'Cash Drawer', icon: CreditCard, path: '/cash-drawer', access: 'owner' },
     { name: 'Dashboard', icon: BarChart, path: '/dashboard', access: 'owner' },
+    { name: 'Staff', icon: Users, path: '/staff-management', access: 'owner' },
     { name: 'Settings', icon: Settings, path: '/settings', access: 'all' },
   ];
   
@@ -52,7 +53,7 @@ const HomePage = () => {
   const handleCheckIn = async () => {
     if (currentUser) {
       try {
-        await checkIn(); // Call checkIn without arguments
+        await checkIn();
       } catch (error) {
         console.error("Failed to check in:", error);
       }
@@ -62,7 +63,7 @@ const HomePage = () => {
   const handleCheckOut = async () => {
     if (currentUser) {
       try {
-        await checkOut(); // Call checkOut without arguments
+        await checkOut();
       } catch (error) {
         console.error("Failed to check out:", error);
       }
@@ -82,13 +83,12 @@ const HomePage = () => {
               <h2 className="text-lg font-semibold mb-4">Attendance</h2>
               {hasCheckedInToday ? (
                 <>
-                  <p>You checked in today.</p>
-                  {!hasCheckedOutToday && (
+                  <p className="mb-2">You checked in today.</p>
+                  {!hasCheckedOutLastSession ? (
                     <Button onClick={handleCheckOut} className="bg-mir-red text-white mt-2">
                       Check Out
                     </Button>
-                  )}
-                  {hasCheckedOutToday && (
+                  ) : (
                     <div className="mt-2">
                       <p>You have already checked out from your last shift.</p>
                       <Button onClick={handleCheckIn} className="bg-mir-red text-white mt-2">

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import PrintSettings from '@/components/Settings/PrintSettings';
-import { useLocalStorage } from '@/hooks/use-local-storage'; // We'll create this hook
+import { useLocalStorage } from '@/hooks/use-local-storage';
 
 const SettingsPage = () => {
   const { currentUser } = useAuth();
@@ -38,19 +38,11 @@ const SettingsPage = () => {
   const [serviceCharge, setServiceCharge] = useLocalStorage('service-charge', false);
   const [serviceRate, setServiceRate] = useLocalStorage('service-rate', 10);
 
-  const handleSave = (section) => {
-    toast({
-      title: "Settings Saved",
-      description: `Your ${section} settings have been updated successfully`,
-      duration: 1000,
-    });
-  };
-
-  // Apply theme color
-  React.useEffect(() => {
+  // Apply theme settings on load and when they change
+  useEffect(() => {
     const root = document.documentElement;
     const colors = {
-      'red': 'var(--mir-red)',
+      'red': '#ef4444',
       'blue': '#3b82f6',
       'green': '#22c55e',
       'purple': '#8b5cf6',
@@ -76,6 +68,14 @@ const SettingsPage = () => {
       document.body.classList.remove('compact');
     }
   }, [themeColor, darkMode, compactView]);
+
+  const handleSave = (section) => {
+    toast({
+      title: "Settings Saved",
+      description: `Your ${section} settings have been updated successfully`,
+      duration: 1000,
+    });
+  };
 
   return (
     <Layout title="Settings" showBackButton>
@@ -168,13 +168,14 @@ const SettingsPage = () => {
                         key={color}
                         className={`w-10 h-10 rounded-full cursor-pointer ${
                           themeColor === color ? 'ring-2 ring-offset-2 ring-black' : ''
-                        } bg-${color}-500`}
-                        style={{ backgroundColor: 
-                          color === 'red' ? '#ef4444' : 
-                          color === 'blue' ? '#3b82f6' : 
-                          color === 'green' ? '#22c55e' : 
-                          color === 'purple' ? '#8b5cf6' : 
-                          '#eab308' 
+                        }`}
+                        style={{ 
+                          backgroundColor: 
+                            color === 'red' ? '#ef4444' : 
+                            color === 'blue' ? '#3b82f6' : 
+                            color === 'green' ? '#22c55e' : 
+                            color === 'purple' ? '#8b5cf6' : 
+                            '#eab308' 
                         }}
                         onClick={() => setThemeColor(color)}
                       />

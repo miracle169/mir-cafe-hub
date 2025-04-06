@@ -191,7 +191,7 @@ const POSPage = () => {
                 
                 {isLoading ? (
                   <div className="text-center py-8">Loading menu items...</div>
-                ) : filteredItems.length > 0 ? (
+                ) : filteredItems && filteredItems.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {filteredItems.map((item) => (
                       <Card key={item.id} className="overflow-hidden">

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { CartItem } from './CartContext';
 import { Customer } from './CustomerContext';
@@ -37,7 +36,7 @@ export interface Order {
   staffId: string;
   staffName: string;
   totalAmount: number;
-  discountAmount?: number; // Add discount amount to Order interface
+  discountAmount?: number;
   paymentDetails?: PaymentDetails;
   kotPrinted: boolean;
   billPrinted: boolean;
@@ -94,8 +93,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Sync orders from Supabase
   const syncOrders = async () => {
-    if (!currentUser) return;
-    
     try {
       const { data, error } = await supabase
         .from('orders')
@@ -165,7 +162,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           .eq('id', order.staff_id)
           .single();
           
-        if (staffError) throw staffError;
+        if (staffError && staffError.code !== 'PGRST116') throw staffError;
         
         const items = itemsData.map(item => ({
           id: item.item_id,
@@ -223,8 +220,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     staffName?: string,
     discount?: number
   ): Promise<Order> => {
-    if (!currentUser) throw new Error('No user logged in');
-    
     const now = new Date().toISOString();
     const totalBeforeDiscount = items.reduce(
       (total, item) => total + item.price * item.quantity,
@@ -238,6 +233,8 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     
     try {
       const newOrderId = crypto.randomUUID();
+      const actualStaffId = staffId || (currentUser ? currentUser.id : '12345');
+      const actualStaffName = staffName || (currentUser ? currentUser.name : 'Demo Staff');
       
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
@@ -245,7 +242,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           id: newOrderId,
           order_number: orderNumber,
           customer_id: customer?.id,
-          staff_id: staffId || currentUser.id,
+          staff_id: actualStaffId,
           total_amount: totalAmount,
           discount_amount: finalDiscount,
           status: 'pending',
@@ -260,7 +257,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (orderError) throw orderError;
       
       const orderItems = items.map(item => ({
-        order_id: orderData.id,
+        order_id: newOrderId,
         item_id: item.id,
         quantity: item.quantity,
         price: item.price,
@@ -286,18 +283,18 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
       
       const newOrder: Order = {
-        id: orderData.id,
+        id: newOrderId,
         items,
         customer,
         status: 'pending',
         type: orderType,
         tableNumber: tableNumber || undefined,
-        createdAt: orderData.created_at,
-        updatedAt: orderData.updated_at,
-        staffId: staffId || currentUser.id,
-        staffName: staffName || currentUser.name,
+        createdAt: now,
+        updatedAt: now,
+        staffId: actualStaffId,
+        staffName: actualStaffName,
         totalAmount,
-        discountAmount: finalDiscount, // Use discountAmount instead of discount
+        discountAmount: finalDiscount,
         kotPrinted: false,
         billPrinted: false,
       };
@@ -309,7 +306,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.error('Error creating order:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create order',
+        description: 'Failed to create order: ' + (error.message || 'Unknown error'),
         variant: 'destructive',
         duration: 1000,
       });
