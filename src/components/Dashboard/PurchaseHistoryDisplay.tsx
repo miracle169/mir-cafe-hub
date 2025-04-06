@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,6 +12,7 @@ interface Purchase {
   id: string;
   date: string;
   staff_name: string;
+  staff_id: string;
   total_amount: number;
   money_received: number;
   balance: number;
@@ -30,6 +30,12 @@ interface StaffBalance {
   total_given: number;
   total_spent: number;
   balance: number;
+}
+
+interface ItemSummary {
+  name: string;
+  quantity: number;
+  totalAmount: number;
 }
 
 const PurchaseHistoryDisplay = () => {
@@ -59,7 +65,6 @@ const PurchaseHistoryDisplay = () => {
     try {
       setLoading(true);
       
-      // Fetch purchases with staff name
       const { data: purchasesData, error: purchasesError } = await supabase
         .from('purchase_logs')
         .select(`
@@ -147,7 +152,6 @@ const PurchaseHistoryDisplay = () => {
     
     let filtered = [...purchases];
     
-    // Filter by date range
     const startDate = new Date(selectedDateRange.start);
     const endDate = new Date(selectedDateRange.end);
     endDate.setHours(23, 59, 59);
@@ -157,7 +161,6 @@ const PurchaseHistoryDisplay = () => {
       return purchaseDate >= startDate && purchaseDate <= endDate;
     });
     
-    // Filter by search term
     if (searchTerm) {
       const lowerSearchTerm = searchTerm.toLowerCase();
       filtered = filtered.filter(purchase => 
@@ -212,7 +215,6 @@ const PurchaseHistoryDisplay = () => {
     setFilterType('custom');
   };
   
-  // Get summary stats for filtered items
   const getTotalPurchases = () => {
     return filteredPurchases.reduce((sum, purchase) => sum + purchase.total_amount, 0);
   };
