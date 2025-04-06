@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -161,6 +162,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Fetch user profile from staff table
   const fetchUserProfile = async (userId: string) => {
     try {
+      // First check if this is a staff member with a different ID format
+      if (userId.indexOf('-') === -1) {
+        const staffMember = staffMembers.find(staff => staff.id === userId);
+        if (staffMember) {
+          setCurrentUser({
+            id: staffMember.id,
+            name: staffMember.name,
+            role: staffMember.role,
+          });
+          return;
+        }
+      }
+      
       const { data, error } = await supabase
         .from('staff')
         .select('id, name, role')
@@ -170,7 +184,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) {
         console.error('Error fetching user profile:', error);
         // For development/demo, use a mock user
-        const mockUser = sampleUsers.find(user => user.id === userId);
+        const mockUser = sampleUsers.find(user => user.email.toLowerCase() === userId.toLowerCase());
         if (mockUser) {
           setCurrentUser({
             id: mockUser.id,
@@ -210,24 +224,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (data && data.length > 0) {
         setStaffMembers(data as StaffMember[]);
+      } else {
+        // If no staff members found in DB, use defaults
+        setStaffMembers(defaultStaffMembers);
       }
     } catch (error) {
       console.error('Error in fetchStaffMembers:', error);
     }
   };
 
-  // Staff login function - uses name and password
-  const staffLogin = async (name: string, password: string) => {
+  // Staff login function - uses name/email and password
+  const staffLogin = async (nameOrEmail: string, password: string) => {
     try {
       setIsLoading(true);
 
       // Find staff member by name and password
       const staffMember = staffMembers.find(
-        (staff) => staff.name === name && staff.password === password
+        (staff) => 
+          (staff.name.toLowerCase() === nameOrEmail.toLowerCase() || 
+           nameOrEmail.toLowerCase() === `${staff.name.toLowerCase()}@mircafe.com`) && 
+          staff.password === password
       );
 
       if (!staffMember) {
-        throw new Error('Invalid name or password');
+        throw new Error('Invalid credentials');
       }
 
       // Store staff login in localStorage
@@ -253,7 +273,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error('Staff login error:', error);
       toast({
         title: "Login failed",
-        description: error.message || "Invalid name or password",
+        description: error.message || "Invalid credentials",
         variant: "destructive",
         duration: 1000,
       });
@@ -276,13 +296,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
+      const today = new Date().toISOString().split('T')[0];
+      const now = new Date().toISOString();
+      
       // Create attendance record
       const { error } = await supabase
         .from('attendance')
         .insert({
           staff_id: currentUser.id,
-          date: new Date().toISOString().split('T')[0],
-          check_in_time: new Date().toISOString(),
+          date: today,
+          check_in_time: now,
         });
 
       if (error) {
@@ -318,18 +341,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      // Create new check-out record
-      const { error } = await supabase
+      const today = new Date().toISOString().split('T')[0];
+      const now = new Date().toISOString();
+      
+      // First check if there's an existing check-in for today
+      const { data: existingRecord, error: fetchError } = await supabase
         .from('attendance')
-        .insert({
-          staff_id: currentUser.id,
-          date: new Date().toISOString().split('T')[0],
-          check_in_time: new Date().toISOString(),
-          check_out_time: new Date().toISOString(),
-        });
+        .select('*')
+        .eq('staff_id', currentUser.id)
+        .eq('date', today)
+        .is('check_out_time', null)
+        .order('check_in_time', { ascending: false })
+        .limit(1);
+        
+      if (fetchError) {
+        throw fetchError;
+      }
+      
+      if (existingRecord && existingRecord.length > 0) {
+        // Update existing record with checkout time
+        const { error: updateError } = await supabase
+          .from('attendance')
+          .update({
+            check_out_time: now
+          })
+          .eq('id', existingRecord[0].id);
+          
+        if (updateError) {
+          throw updateError;
+        }
+      } else {
+        // Create new check-out record if no existing record found
+        const { error } = await supabase
+          .from('attendance')
+          .insert({
+            staff_id: currentUser.id,
+            date: today,
+            check_in_time: now,
+            check_out_time: now,
+          });
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
       }
 
       toast({
@@ -468,11 +522,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setStaffMembers([...staffMembers, newStaff]);
     
     // Here you would make the API call to save to Supabase
-    // and then update the local state with the returned data
+    supabase.from('staff').insert({
+      name,
+      role,
+      password
+    }).then(({ error }) => {
+      if (error) {
+        console.error('Error adding staff member:', error);
+      }
+    });
   };
 
   const updateStaffMember = (id: string, name: string, role: UserRole, password?: string) => {
-    // In a real app, you would update the database here
+    // Update the local state
     setStaffMembers(
       staffMembers.map(staff =>
         staff.id === id 
@@ -486,7 +548,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       )
     );
     
-    // Here you would make the API call to update in Supabase
+    // Update in Supabase
+    const updateData: any = { name, role };
+    if (password) updateData.password = password;
+    
+    supabase.from('staff')
+      .update(updateData)
+      .eq('id', id)
+      .then(({ error }) => {
+        if (error) {
+          console.error('Error updating staff member:', error);
+        }
+      });
   };
 
   const deleteStaffMember = (id: string) => {
@@ -497,10 +570,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return false;
     }
     
-    // In a real app, you would delete from the database here
+    // Update local state
     setStaffMembers(staffMembers.filter(staff => staff.id !== id));
     
-    // Here you would make the API call to delete from Supabase
+    // Delete from Supabase
+    supabase.from('staff')
+      .delete()
+      .eq('id', id)
+      .then(({ error }) => {
+        if (error) {
+          console.error('Error deleting staff member:', error);
+        }
+      });
+    
     return true;
   };
 

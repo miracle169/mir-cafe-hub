@@ -1,301 +1,463 @@
 
 import React, { useState, useEffect } from 'react';
-import { useInventory } from '@/contexts/InventoryContext';
-import { format } from 'date-fns';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Search } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Filter, Calendar } from 'lucide-react';
+
+interface Purchase {
+  id: string;
+  date: string;
+  staff_name: string;
+  total_amount: number;
+  money_received: number;
+  balance: number;
+  items: {
+    name: string;
+    quantity: number;
+    unit_price: number;
+    total: number;
+  }[];
+}
+
+interface StaffBalance {
+  staff_id: string;
+  staff_name: string;
+  total_given: number;
+  total_spent: number;
+  balance: number;
+}
 
 const PurchaseHistoryDisplay = () => {
-  const { purchaseLogs, items } = useInventory();
-  const [filteredLogs, setFilteredLogs] = useState(purchaseLogs);
-  const [startDate, setStartDate] = useState<Date | undefined>(
-    new Date(new Date().setDate(new Date().getDate() - 30))
-  );
-  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [filteredPurchases, setFilteredPurchases] = useState<Purchase[]>([]);
+  const [staffBalances, setStaffBalances] = useState<StaffBalance[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterType, setFilterType] = useState('month');
+  const [selectedDateRange, setSelectedDateRange] = useState<{
+    start: string;
+    end: string;
+  }>({
+    start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+    end: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
+  });
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedItem, setSelectedItem] = useState<string>('all');
-  const [selectedStaff, setSelectedStaff] = useState<string>('all');
-
-  // Get unique staff members from purchase logs
-  const staffMembers = Array.from(
-    new Set(purchaseLogs.map(log => log.staffName))
-  );
-
+  
   useEffect(() => {
-    let filtered = [...purchaseLogs];
-
-    // Filter by date range
-    if (startDate && endDate) {
-      filtered = filtered.filter(log => {
-        const logDate = new Date(log.date);
-        return logDate >= startDate && logDate <= endDate;
-      });
-    }
-
-    // Filter by search term (staff name or item name)
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        log => 
-          log.staffName.toLowerCase().includes(term) ||
-          log.items.some(item => item.itemName.toLowerCase().includes(term))
+    fetchPurchases();
+  }, []);
+  
+  useEffect(() => {
+    filterPurchases();
+  }, [purchases, filterType, selectedDateRange, searchTerm]);
+  
+  const fetchPurchases = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch purchases with staff name
+      const { data: purchasesData, error: purchasesError } = await supabase
+        .from('purchase_logs')
+        .select(`
+          id,
+          date,
+          total_amount,
+          money_received,
+          balance,
+          staff_id,
+          staff!inner (
+            name
+          )
+        `)
+        .order('date', { ascending: false });
+        
+      if (purchasesError) throw purchasesError;
+      
+      const purchasesWithItems = await Promise.all(
+        purchasesData.map(async (purchase) => {
+          const { data: itemsData, error: itemsError } = await supabase
+            .from('purchase_items')
+            .select(`
+              quantity,
+              unit_price,
+              inventory_items!inner (
+                name
+              )
+            `)
+            .eq('purchase_id', purchase.id);
+            
+          if (itemsError) throw itemsError;
+          
+          return {
+            id: purchase.id,
+            date: purchase.date,
+            staff_name: purchase.staff.name,
+            staff_id: purchase.staff_id,
+            total_amount: purchase.total_amount,
+            money_received: purchase.money_received,
+            balance: purchase.balance,
+            items: itemsData.map(item => ({
+              name: item.inventory_items.name,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              total: item.quantity * item.unit_price
+            }))
+          };
+        })
       );
+      
+      setPurchases(purchasesWithItems);
+      calculateStaffBalances(purchasesWithItems);
+    } catch (error) {
+      console.error('Error fetching purchases:', error);
+    } finally {
+      setLoading(false);
     }
-
-    // Filter by selected item
-    if (selectedItem !== 'all') {
-      filtered = filtered.filter(log =>
-        log.items.some(item => item.itemId === selectedItem)
-      );
-    }
-
-    // Filter by selected staff
-    if (selectedStaff !== 'all') {
-      filtered = filtered.filter(log => log.staffName === selectedStaff);
-    }
-
-    setFilteredLogs(filtered);
-  }, [purchaseLogs, startDate, endDate, searchTerm, selectedItem, selectedStaff]);
-
-  // Calculate totals
-  const calculateTotals = () => {
-    const itemTotals: { [key: string]: { quantity: number; amount: number } } = {};
+  };
+  
+  const calculateStaffBalances = (purchaseData: Purchase[]) => {
+    const balances = new Map<string, StaffBalance>();
     
-    filteredLogs.forEach(log => {
-      log.items.forEach(item => {
-        if (!itemTotals[item.itemName]) {
-          itemTotals[item.itemName] = { quantity: 0, amount: 0 };
+    purchaseData.forEach(purchase => {
+      if (!balances.has(purchase.staff_id)) {
+        balances.set(purchase.staff_id, {
+          staff_id: purchase.staff_id,
+          staff_name: purchase.staff_name,
+          total_given: 0,
+          total_spent: 0,
+          balance: 0
+        });
+      }
+      
+      const staffBalance = balances.get(purchase.staff_id)!;
+      staffBalance.total_given += purchase.money_received;
+      staffBalance.total_spent += purchase.total_amount;
+      staffBalance.balance = staffBalance.total_given - staffBalance.total_spent;
+    });
+    
+    setStaffBalances(Array.from(balances.values()));
+  };
+  
+  const filterPurchases = () => {
+    if (purchases.length === 0) return;
+    
+    let filtered = [...purchases];
+    
+    // Filter by date range
+    const startDate = new Date(selectedDateRange.start);
+    const endDate = new Date(selectedDateRange.end);
+    endDate.setHours(23, 59, 59);
+    
+    filtered = filtered.filter(purchase => {
+      const purchaseDate = new Date(purchase.date);
+      return purchaseDate >= startDate && purchaseDate <= endDate;
+    });
+    
+    // Filter by search term
+    if (searchTerm) {
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      filtered = filtered.filter(purchase => 
+        purchase.staff_name.toLowerCase().includes(lowerSearchTerm) ||
+        purchase.items.some(item => 
+          item.name.toLowerCase().includes(lowerSearchTerm)
+        )
+      );
+    }
+    
+    setFilteredPurchases(filtered);
+  };
+  
+  const handleDateRangeChange = (type: string) => {
+    const today = new Date();
+    
+    switch (type) {
+      case 'today':
+        const todayStr = format(today, 'yyyy-MM-dd');
+        setSelectedDateRange({ start: todayStr, end: todayStr });
+        break;
+      case 'week':
+        setSelectedDateRange({
+          start: format(subDays(today, 7), 'yyyy-MM-dd'),
+          end: format(today, 'yyyy-MM-dd')
+        });
+        break;
+      case 'month':
+        setSelectedDateRange({
+          start: format(startOfMonth(today), 'yyyy-MM-dd'),
+          end: format(endOfMonth(today), 'yyyy-MM-dd')
+        });
+        break;
+      case 'year':
+        setSelectedDateRange({
+          start: format(new Date(today.getFullYear(), 0, 1), 'yyyy-MM-dd'),
+          end: format(new Date(today.getFullYear(), 11, 31), 'yyyy-MM-dd')
+        });
+        break;
+      default:
+        break;
+    }
+    
+    setFilterType(type);
+  };
+  
+  const handleDateInputChange = (field: 'start' | 'end', value: string) => {
+    setSelectedDateRange(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    setFilterType('custom');
+  };
+  
+  // Get summary stats for filtered items
+  const getTotalPurchases = () => {
+    return filteredPurchases.reduce((sum, purchase) => sum + purchase.total_amount, 0);
+  };
+  
+  const getMostPurchasedItems = () => {
+    const itemCounts = new Map<string, { quantity: number, totalAmount: number }>();
+    
+    filteredPurchases.forEach(purchase => {
+      purchase.items.forEach(item => {
+        if (!itemCounts.has(item.name)) {
+          itemCounts.set(item.name, { quantity: 0, totalAmount: 0 });
         }
-        itemTotals[item.itemName].quantity += item.quantity;
-        itemTotals[item.itemName].amount += item.quantity * item.unitPrice;
+        const current = itemCounts.get(item.name)!;
+        current.quantity += item.quantity;
+        current.totalAmount += item.total;
       });
     });
     
-    return itemTotals;
+    return Array.from(itemCounts.entries())
+      .map(([name, { quantity, totalAmount }]) => ({ 
+        name, 
+        quantity, 
+        totalAmount 
+      }))
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5);
   };
-
-  const itemTotals = calculateTotals();
-
-  // Calculate total money given to staff and balance
-  const staffSummary: { [key: string]: { received: number; spent: number; balance: number } } = {};
-  filteredLogs.forEach(log => {
-    if (!staffSummary[log.staffName]) {
-      staffSummary[log.staffName] = { received: 0, spent: 0, balance: 0 };
-    }
-    staffSummary[log.staffName].received += log.moneyReceived;
-    staffSummary[log.staffName].spent += log.totalAmount;
-    staffSummary[log.staffName].balance += log.balance;
-  });
-
+  
   return (
     <div className="space-y-6">
+      <div className="flex flex-col md:flex-row gap-4 justify-between">
+        <div className="flex flex-col md:flex-row gap-2">
+          <Select value={filterType} onValueChange={handleDateRangeChange}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Select period" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="week">Last 7 days</SelectItem>
+              <SelectItem value="month">This month</SelectItem>
+              <SelectItem value="year">This year</SelectItem>
+              <SelectItem value="custom">Custom range</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {filterType === 'custom' && (
+            <div className="flex gap-2 items-center">
+              <Label htmlFor="start-date">From</Label>
+              <Input
+                id="start-date"
+                type="date"
+                value={selectedDateRange.start}
+                onChange={(e) => handleDateInputChange('start', e.target.value)}
+                className="w-40"
+              />
+              <Label htmlFor="end-date">To</Label>
+              <Input
+                id="end-date"
+                type="date"
+                value={selectedDateRange.end}
+                onChange={(e) => handleDateInputChange('end', e.target.value)}
+                className="w-40"
+              />
+            </div>
+          )}
+        </div>
+        
+        <div className="relative">
+          <Input
+            placeholder="Search by staff or item name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 w-full md:w-[300px]"
+          />
+          <Filter className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+        </div>
+      </div>
+      
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Total Purchases</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹{getTotalPurchases().toFixed(2)}</div>
+            <p className="text-sm text-gray-500">
+              {filteredPurchases.length} purchase records
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Date Range</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <Calendar className="mr-2 h-4 w-4 text-gray-500" />
+              <span>
+                {format(new Date(selectedDateRange.start), 'dd MMM yyyy')} -{' '}
+                {format(new Date(selectedDateRange.end), 'dd MMM yyyy')}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Staff Involved</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {new Set(filteredPurchases.map(p => p.staff_id)).size}
+            </div>
+            <p className="text-sm text-gray-500">
+              Staff members made purchases
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+      
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Most Purchased Items</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p>Loading...</p>
+            ) : (
+              <div className="space-y-4">
+                {getMostPurchasedItems().map((item, index) => (
+                  <div key={index} className="flex justify-between border-b pb-2">
+                    <div>
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
+                    </div>
+                    <p className="font-medium">₹{item.totalAmount.toFixed(2)}</p>
+                  </div>
+                ))}
+                
+                {getMostPurchasedItems().length === 0 && (
+                  <p className="text-center text-gray-500 py-4">No items found</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Staff Balances</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p>Loading...</p>
+            ) : (
+              <div className="space-y-4">
+                {staffBalances.map((staff) => (
+                  <div key={staff.staff_id} className="flex justify-between border-b pb-2">
+                    <div>
+                      <p className="font-medium">{staff.staff_name}</p>
+                      <p className="text-sm text-gray-500">
+                        Given: ₹{staff.total_given.toFixed(2)} | 
+                        Spent: ₹{staff.total_spent.toFixed(2)}
+                      </p>
+                    </div>
+                    <p className={`font-medium ${staff.balance < 0 ? 'text-red-500' : 'text-green-600'}`}>
+                      ₹{staff.balance.toFixed(2)}
+                    </p>
+                  </div>
+                ))}
+                
+                {staffBalances.length === 0 && (
+                  <p className="text-center text-gray-500 py-4">No staff balances found</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-medium">Purchase History</CardTitle>
+        <CardHeader>
+          <CardTitle>Purchase History</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-4 mb-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Start Date</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !startDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? format(startDate, "PPP") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={setStartDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+          {loading ? (
+            <p className="text-center py-4">Loading...</p>
+          ) : (
+            <div className="space-y-6">
+              {filteredPurchases.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">No purchase records found</p>
+              ) : (
+                filteredPurchases.map((purchase) => (
+                  <div key={purchase.id} className="border rounded-lg p-4">
+                    <div className="flex justify-between mb-2">
+                      <div>
+                        <p className="font-semibold">
+                          Purchase #{purchase.id.substring(0, 8)}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          By {purchase.staff_name}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">
+                          ₹{purchase.total_amount.toFixed(2)}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {format(new Date(purchase.date), 'dd MMM yyyy')}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-2">
+                      <p className="text-sm font-medium mb-1">Items:</p>
+                      <div className="space-y-1">
+                        {purchase.items.map((item, index) => (
+                          <div key={index} className="flex justify-between text-sm">
+                            <span>
+                              {item.quantity} × {item.name} (@₹{item.unit_price.toFixed(2)})
+                            </span>
+                            <span>₹{item.total.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div className="mt-2 pt-2 border-t flex justify-between text-sm">
+                      <span>Money received</span>
+                      <span>₹{purchase.money_received.toFixed(2)}</span>
+                    </div>
+                    
+                    <div className="flex justify-between text-sm font-medium">
+                      <span>Balance</span>
+                      <span className={purchase.balance >= 0 ? 'text-green-600' : 'text-red-500'}>
+                        ₹{purchase.balance.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">End Date</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !endDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? format(endDate, "PPP") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    onSelect={setEndDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Filter by Item</label>
-              <Select value={selectedItem} onValueChange={setSelectedItem}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Items" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Items</SelectItem>
-                  {items.map(item => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Filter by Staff</label>
-              <Select value={selectedStaff} onValueChange={setSelectedStaff}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Staff" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Staff</SelectItem>
-                  {staffMembers.map((name, index) => (
-                    <SelectItem key={index} value={name}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="md:col-span-4">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by staff or item..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <Card>
-              <CardHeader className="py-2">
-                <CardTitle className="text-sm font-medium">Item Purchase Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item Name</TableHead>
-                      <TableHead className="text-right">Quantity</TableHead>
-                      <TableHead className="text-right">Total Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Object.entries(itemTotals).map(([itemName, totals], index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{itemName}</TableCell>
-                        <TableCell className="text-right">{totals.quantity.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">₹{totals.amount.toFixed(2)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="py-2">
-                <CardTitle className="text-sm font-medium">Staff Purchase Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Staff Name</TableHead>
-                      <TableHead className="text-right">Money Received</TableHead>
-                      <TableHead className="text-right">Amount Spent</TableHead>
-                      <TableHead className="text-right">Balance</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Object.entries(staffSummary).map(([staffName, summary], index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{staffName}</TableCell>
-                        <TableCell className="text-right">₹{summary.received.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">₹{summary.spent.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">₹{summary.balance.toFixed(2)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="py-2">
-                <CardTitle className="text-sm font-medium">Purchase Log Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Staff</TableHead>
-                      <TableHead>Items</TableHead>
-                      <TableHead className="text-right">Total Amount</TableHead>
-                      <TableHead className="text-right">Money Received</TableHead>
-                      <TableHead className="text-right">Balance</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell>{format(new Date(log.date), 'PPP')}</TableCell>
-                        <TableCell>{log.staffName}</TableCell>
-                        <TableCell>
-                          <ul className="list-disc pl-5">
-                            {log.items.map((item, index) => (
-                              <li key={index}>
-                                {item.itemName} ({item.quantity} @ ₹{item.unitPrice})
-                              </li>
-                            ))}
-                          </ul>
-                        </TableCell>
-                        <TableCell className="text-right">₹{log.totalAmount.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">₹{log.moneyReceived.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">₹{log.balance.toFixed(2)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

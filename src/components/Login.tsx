@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { supabase } from '@/integrations/supabase/client';
 
 const Login = () => {
   // Login state
@@ -21,7 +22,7 @@ const Login = () => {
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   const [isSigningUp, setIsSigningUp] = useState(false);
   
-  const { login, addStaffMember } = useAuth();
+  const { login, addStaffMember, staffLogin } = useAuth();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,14 +30,23 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      const result = await login(email, password);
+      // First try email login with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       
-      if (!result.success) {
-        toast({
-          title: "Login Failed",
-          description: result.error || "Please check your credentials and try again",
-          variant: "destructive",
-        });
+      if (error) {
+        // If Supabase login fails, try staff login
+        const result = await staffLogin(email, password);
+        
+        if (!result.success) {
+          toast({
+            title: "Login Failed",
+            description: result.error || "Please check your credentials and try again",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -76,7 +86,23 @@ const Login = () => {
     }
     
     try {
-      // Add staff member with 'staff' role
+      // First, try to create a Supabase auth account
+      const { data, error } = await supabase.auth.signUp({
+        email: signupEmail,
+        password: signupPassword,
+        options: {
+          data: {
+            name: signupName,
+            role: 'staff',
+          }
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+      
+      // Then add the staff member to our local staff list
       addStaffMember(signupName, 'staff', signupPassword);
       
       toast({
@@ -120,11 +146,10 @@ const Login = () => {
             <form onSubmit={handleSubmit}>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email or Username</Label>
                   <Input 
                     id="email" 
-                    type="email" 
-                    placeholder="Enter your email"
+                    placeholder="Enter your email or username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
