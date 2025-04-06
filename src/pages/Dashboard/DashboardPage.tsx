@@ -189,7 +189,12 @@ const DashboardPage = () => {
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value) => [`₹${value.toFixed(2)}`, 'Sales']} />
+                        <Tooltip 
+                          formatter={(value: any) => {
+                            // Check if value is a number before calling toFixed
+                            return [typeof value === 'number' ? `₹${value.toFixed(2)}` : `₹${value}`, 'Sales'];
+                          }} 
+                        />
                         <Legend />
                       </PieChart>
                     </ResponsiveContainer>
