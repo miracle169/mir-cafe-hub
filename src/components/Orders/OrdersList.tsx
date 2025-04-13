@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useOrder, Order } from '@/contexts/OrderContext';
-import { Clock, Receipt, ArrowRight } from 'lucide-react';
+import { Clock, Receipt, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Function to format time elapsed
@@ -35,17 +35,17 @@ const getStatusColor = (status: string, timeElapsed: number): string => {
 };
 
 const OrdersList: React.FC = () => {
-  const { getCurrentOrders, getDailyOrders } = useOrder();
+  const { getCurrentOrders, getDailyOrders, orders } = useOrder();
   const { isOwner } = useAuth();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'pending' | 'today'>('pending');
   
   // Get orders based on view mode
-  const pendingOrders = getCurrentOrders().filter(order => order.kotPrinted);
+  const pendingOrders = getCurrentOrders();
   // Fetch all today's orders including completed ones (no filtering by status)
   const todayOrders = getDailyOrders(new Date().toISOString().split('T')[0]);
   
-  const orders = viewMode === 'pending' ? pendingOrders : todayOrders;
+  const displayOrders = viewMode === 'pending' ? pendingOrders : todayOrders;
 
   const handleViewOrder = (orderId: string) => {
     navigate(`/pos/view-order/${orderId}`);
@@ -59,24 +59,34 @@ const OrdersList: React.FC = () => {
           onClick={() => setViewMode('pending')}
           className={viewMode === 'pending' ? 'bg-mir-red text-white' : ''}
         >
-          Pending Orders
+          Pending Orders ({pendingOrders.length})
         </Button>
         <Button 
           variant={viewMode === 'today' ? 'default' : 'outline'}
           onClick={() => setViewMode('today')}
           className={viewMode === 'today' ? 'bg-mir-red text-white' : ''}
         >
-          Today's Receipts
+          Today's Receipts ({todayOrders.length})
         </Button>
       </div>
       
-      {orders.length === 0 ? (
+      {orders.length === 0 && (
+        <Card className="shadow-sm">
+          <CardContent className="p-4 text-center">
+            <AlertCircle className="mx-auto h-8 w-8 text-yellow-500 mb-2" />
+            <p className="text-gray-500">Unable to fetch orders from database</p>
+            <p className="text-sm text-gray-400">Please check your database connection</p>
+          </CardContent>
+        </Card>
+      )}
+      
+      {orders.length > 0 && displayOrders.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
           No {viewMode === 'pending' ? 'pending' : 'today\'s'} orders found
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 pb-4">
-          {orders.map((order) => {
+          {displayOrders.map((order) => {
             const timeElapsedMinutes = Math.floor(
               (new Date().getTime() - new Date(order.createdAt).getTime()) / (1000 * 60)
             );

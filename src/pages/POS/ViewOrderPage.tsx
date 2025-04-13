@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,16 +9,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useOrder, PaymentMethod } from '@/contexts/OrderContext';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Clock, Printer, CreditCard, QrCode, Check } from 'lucide-react';
+import { Clock, Printer, CreditCard, QrCode, Check, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { printKOT, printBill, isPrinterConnected } from '@/utils/printing';
 
 const ViewOrderPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getOrderById, completeOrder, updateOrderStatus, setBillPrinted } = useOrder();
+  const { getOrderById, completeOrder, updateOrderStatus, setBillPrinted, setKotPrinted } = useOrder();
   const { toast } = useToast();
   const { currentUser } = useAuth();
   
@@ -27,6 +28,12 @@ const ViewOrderPage = () => {
   const [cashAmount, setCashAmount] = useState<string>('0');
   const [upiAmount, setUpiAmount] = useState<string>('0');
   const [showUpiQr, setShowUpiQr] = useState(false);
+  const [printerConnected, setPrinterConnected] = useState<boolean>(isPrinterConnected());
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  
+  useEffect(() => {
+    setPrinterConnected(isPrinterConnected());
+  }, []);
   
   if (!id) {
     navigate('/pos');
@@ -36,8 +43,18 @@ const ViewOrderPage = () => {
   const order = getOrderById(id);
   
   if (!order) {
-    navigate('/pos');
-    return null;
+    return (
+      <Layout title="Order Not Found" showBackButton>
+        <div className="mir-container p-4 flex flex-col items-center justify-center">
+          <AlertCircle className="h-12 w-12 text-yellow-500 mb-4" />
+          <h1 className="text-xl font-bold mb-2">Order Not Found</h1>
+          <p className="text-gray-500 mb-6">The order you're looking for could not be found.</p>
+          <Button onClick={() => navigate('/pos')}>
+            Return to POS
+          </Button>
+        </div>
+      </Layout>
+    );
   }
   
   const totalAmount = order.totalAmount;
@@ -51,12 +68,66 @@ const ViewOrderPage = () => {
     });
   };
   
-  const handlePrintBill = () => {
-    setBillPrinted(id);
-    toast({
-      title: "Bill Printed",
-      description: `Bill for Order #${order.id.slice(0, 5)} printed successfully`,
-    });
+  const handlePrintKOT = async () => {
+    if (!printerConnected) {
+      toast({
+        title: "Printer Not Connected",
+        description: "Please connect a printer first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      setIsProcessing(true);
+      await printKOT(order);
+      await setKotPrinted(id);
+      
+      toast({
+        title: "KOT Printed",
+        description: `Kitchen Order Ticket for Order #${order.id.slice(-4)} printed successfully`,
+      });
+    } catch (error) {
+      console.error('Error printing KOT:', error);
+      toast({
+        title: "Print Failed",
+        description: "Failed to print KOT",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  const handlePrintBill = async () => {
+    if (!printerConnected) {
+      toast({
+        title: "Printer Not Connected",
+        description: "Please connect a printer first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      setIsProcessing(true);
+      await printBill(order);
+      await setBillPrinted(id);
+      
+      toast({
+        title: "Bill Printed",
+        description: `Bill for Order #${order.id.slice(-4)} printed successfully`,
+      });
+    } catch (error) {
+      console.error('Error printing bill:', error);
+      toast({
+        title: "Print Failed",
+        description: "Failed to print bill",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
   
   const handleShowUpiQr = () => {
@@ -67,41 +138,54 @@ const ViewOrderPage = () => {
     });
   };
   
-  const handleCompletePayment = () => {
-    const cashPayment = parseFloat(cashAmount) || 0;
-    const upiPayment = parseFloat(upiAmount) || 0;
-    const total = cashPayment + upiPayment;
-
-    if (total < totalAmount) {
-      toast({
-        title: "Payment Error",
-        description: "The total payment amount is less than the bill amount",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const paymentDetails = {
-      method: paymentMethod,
-      cash: paymentMethod === 'cash' || paymentMethod === 'split' ? cashPayment : 0,
-      upi: paymentMethod === 'upi' || paymentMethod === 'split' ? upiPayment : 0,
-      total: totalAmount,
-    };
+  const handleCompletePayment = async () => {
+    setIsProcessing(true);
     
     try {
-      completeOrder(id, paymentDetails);
+      const cashPayment = parseFloat(cashAmount) || 0;
+      const upiPayment = parseFloat(upiAmount) || 0;
+      const total = cashPayment + upiPayment;
+
+      if (total < totalAmount) {
+        toast({
+          title: "Payment Error",
+          description: "The total payment amount is less than the bill amount",
+          variant: "destructive",
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      const paymentDetails = {
+        method: paymentMethod,
+        cash: paymentMethod === 'cash' || paymentMethod === 'split' ? cashPayment : 0,
+        upi: paymentMethod === 'upi' || paymentMethod === 'split' ? upiPayment : 0,
+        total: totalAmount,
+      };
+      
+      const success = await completeOrder(id, paymentDetails);
       setPaymentDialogOpen(false);
       
-      toast({
-        title: "Order Completed",
-        description: "Payment processed successfully",
-      });
+      if (success) {
+        toast({
+          title: "Order Completed",
+          description: "Payment processed successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to complete the order",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to complete the order",
+        description: "Failed to process payment",
         variant: "destructive",
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
   
@@ -235,6 +319,13 @@ const ViewOrderPage = () => {
             <span>Total</span>
             <span>₹{order.totalAmount.toFixed(2)}</span>
           </div>
+          
+          {order.discountAmount && order.discountAmount > 0 && (
+            <div className="flex justify-between text-green-600">
+              <span>Discount</span>
+              <span>-₹{order.discountAmount.toFixed(2)}</span>
+            </div>
+          )}
         </div>
         
         {isPending ? (
@@ -269,6 +360,7 @@ const ViewOrderPage = () => {
             <Button 
               className="w-full bg-mir-red text-white hover:bg-mir-red/90"
               onClick={handleOpenPaymentDialog}
+              disabled={isProcessing}
             >
               <CreditCard className="mr-2 h-4 w-4" />
               Process Payment
@@ -277,7 +369,18 @@ const ViewOrderPage = () => {
             <Button 
               variant="outline"
               className="w-full"
+              onClick={handlePrintKOT}
+              disabled={isProcessing}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Print KOT
+            </Button>
+            
+            <Button 
+              variant="outline"
+              className="w-full"
               onClick={handlePrintBill}
+              disabled={isProcessing}
             >
               <Printer className="mr-2 h-4 w-4" />
               Print Bill
@@ -303,6 +406,7 @@ const ViewOrderPage = () => {
               variant="outline"
               className="w-full"
               onClick={handlePrintBill}
+              disabled={isProcessing}
             >
               <Printer className="mr-2 h-4 w-4" />
               Print Bill
@@ -312,6 +416,7 @@ const ViewOrderPage = () => {
               variant="outline"
               className="w-full"
               onClick={() => navigate('/pos')}
+              disabled={isProcessing}
             >
               New Order
             </Button>
@@ -411,11 +516,15 @@ const ViewOrderPage = () => {
             <Button 
               variant="outline" 
               onClick={() => setPaymentDialogOpen(false)}
+              disabled={isProcessing}
             >
               Cancel
             </Button>
-            <Button onClick={handleCompletePayment}>
-              Complete Payment
+            <Button 
+              onClick={handleCompletePayment}
+              disabled={isProcessing}
+            >
+              {isProcessing ? "Processing..." : "Complete Payment"}
             </Button>
           </DialogFooter>
         </DialogContent>

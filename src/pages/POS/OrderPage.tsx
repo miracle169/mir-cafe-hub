@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
@@ -13,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, Printer } from 'lucide-react';
+import { Check, Printer, AlertTriangle } from 'lucide-react';
 import { printKOT, printBill, connectPrinter, isPrinterConnected } from '@/utils/printing';
 import { useToast } from '@/hooks/use-toast';
 import { checkSupabaseConnection } from '@/integrations/supabase/client';
@@ -35,19 +36,34 @@ const OrderPage = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [printerConnected, setPrinterConnected] = useState<boolean>(isPrinterConnected());
   const [connectionStatus, setConnectionStatus] = useState<boolean>(true);
+  const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
   
   // Check database connection
   useEffect(() => {
     const checkConnection = async () => {
-      const isConnected = await checkSupabaseConnection();
-      setConnectionStatus(isConnected);
-      if (!isConnected) {
+      setIsTestingConnection(true);
+      try {
+        const isConnected = await checkSupabaseConnection();
+        setConnectionStatus(isConnected);
+        if (!isConnected) {
+          toast({
+            title: 'Database Connection Error',
+            description: 'Cannot connect to the database. Some features may not work.',
+            variant: 'destructive',
+            duration: 5000,
+          });
+        }
+      } catch (error) {
+        console.error("Error checking connection:", error);
+        setConnectionStatus(false);
         toast({
-          title: 'Database Connection Error',
-          description: 'Cannot connect to the database. Some features may not work.',
+          title: 'Connection Error',
+          description: 'Error checking database connection. Some features may not work.',
           variant: 'destructive',
-          duration: 3000,
+          duration: 5000,
         });
+      } finally {
+        setIsTestingConnection(false);
       }
     };
     
@@ -55,7 +71,7 @@ const OrderPage = () => {
   }, [toast]);
   
   // Calculate discount from cart context
-  const discount = totalAmount - cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const discount = 0; // Replace with actual discount calculation if needed
   
   // Total after applying discount
   const finalTotal = totalAmount;
@@ -70,14 +86,14 @@ const OrderPage = () => {
         toast({
           title: 'Printer Connected',
           description: 'Successfully connected to printer',
-          duration: 1000,
+          duration: 3000,
         });
       } else {
         toast({
           title: 'Connection Failed',
           description: 'Failed to connect to printer',
           variant: 'destructive',
-          duration: 1000,
+          duration: 3000,
         });
       }
     } catch (error) {
@@ -85,7 +101,7 @@ const OrderPage = () => {
         title: 'Connection Error',
         description: 'Error connecting to printer',
         variant: 'destructive',
-        duration: 1000,
+        duration: 3000,
       });
     }
   };
@@ -97,7 +113,7 @@ const OrderPage = () => {
         title: 'Empty Cart',
         description: 'Your cart is empty',
         variant: 'destructive',
-        duration: 1000,
+        duration: 3000,
       });
       return;
     }
@@ -107,7 +123,7 @@ const OrderPage = () => {
         title: 'Table Required',
         description: 'Please enter a table number for dine-in orders',
         variant: 'destructive',
-        duration: 1000,
+        duration: 3000,
       });
       return;
     }
@@ -119,7 +135,7 @@ const OrderPage = () => {
           title: 'Invalid Split Payment',
           description: `Total split amount (₹${total.toFixed(2)}) must equal total (₹${finalTotal.toFixed(2)})`,
           variant: 'destructive',
-          duration: 1000,
+          duration: 3000,
         });
         return;
       }
@@ -152,7 +168,7 @@ const OrderPage = () => {
         toast({
           title: 'Using Demo Mode',
           description: 'No staff logged in. Using demo credentials.',
-          duration: 2000,
+          duration: 3000,
         });
       }
 
@@ -163,7 +179,8 @@ const OrderPage = () => {
         orderType,
         orderType === 'dine-in' ? tableNumber : undefined,
         staffId,
-        staffName
+        staffName,
+        discount
       );
 
       // Print KOT if printer is connected
@@ -173,7 +190,7 @@ const OrderPage = () => {
           toast({
             title: 'KOT Printed',
             description: 'Kitchen Order Ticket printed successfully',
-            duration: 1000,
+            duration: 3000,
           });
         } catch (error) {
           console.error('Error printing KOT:', error);
@@ -181,7 +198,7 @@ const OrderPage = () => {
             title: 'Print Failed',
             description: 'Failed to print KOT',
             variant: 'destructive',
-            duration: 1000,
+            duration: 3000,
           });
         }
       }
@@ -193,7 +210,7 @@ const OrderPage = () => {
       toast({
         title: 'Order Placed',
         description: 'Your order has been placed successfully',
-        duration: 1000,
+        duration: 3000,
       });
 
       // Navigate to the view order page
@@ -204,7 +221,7 @@ const OrderPage = () => {
         title: 'Order Failed',
         description: 'Failed to place order: ' + (error.message || 'Unknown error'),
         variant: 'destructive',
-        duration: 3000,
+        duration: 5000,
       });
     } finally {
       setIsProcessing(false);
@@ -225,6 +242,16 @@ const OrderPage = () => {
   return (
     <Layout title="Checkout" showBackButton>
       <div className="p-4 max-w-xl mx-auto">
+        {!connectionStatus && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-yellow-800 flex items-center">
+            <AlertTriangle className="h-5 w-5 mr-2 text-yellow-500" />
+            <div>
+              <p className="font-medium">Database Connection Issue</p>
+              <p className="text-sm">Unable to connect to the database. Orders may not be saved.</p>
+            </div>
+          </div>
+        )}
+        
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>Order Summary</CardTitle>
@@ -301,7 +328,6 @@ const OrderPage = () => {
           </CardContent>
         </Card>
 
-        {/* Rest of the components remain the same */}
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>Additional Notes</CardTitle>
@@ -406,11 +432,13 @@ const OrderPage = () => {
         <div className="flex flex-col gap-4">
           <Button 
             onClick={handlePlaceOrder}
-            disabled={isProcessing}
+            disabled={isProcessing || isTestingConnection}
             className="w-full"
           >
             {isProcessing ? (
               "Processing..."
+            ) : isTestingConnection ? (
+              "Testing Connection..."
             ) : (
               <>
                 <Check className="mr-2 h-4 w-4" />

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { CartItem } from './CartContext';
 import { Customer } from './CustomerContext';
@@ -102,6 +103,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           customer_id, 
           staff_id, 
           total_amount, 
+          discount_amount,
           status, 
           order_type, 
           table_number, 
@@ -120,11 +122,12 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (error) throw error;
       
       const formattedOrders = await Promise.all(data.map(async (order) => {
+        // Fetch order items with menu item details
         const { data: itemsData, error: itemsError } = await supabase
           .from('order_items')
           .select(`
             id,
-            item_id,
+            menu_item_id,
             quantity,
             price,
             order_id,
@@ -150,7 +153,6 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               loyaltyPoints: customerData.loyalty_points,
               visitCount: customerData.visit_count,
               lastVisit: customerData.last_visit,
-              firstVisit: customerData.first_visit,
               favoriteItems: [],
             };
           }
@@ -164,8 +166,9 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           
         if (staffError && staffError.code !== 'PGRST116') throw staffError;
         
+        // Map order items to CartItem format
         const items = itemsData.map(item => ({
-          id: item.item_id,
+          id: item.menu_item_id,
           name: item.menu_items ? (item.menu_items as any).name : 'Unknown Item',
           price: item.price,
           quantity: item.quantity,
@@ -192,6 +195,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           staffId: order.staff_id,
           staffName: staffData?.name || 'Unknown Staff',
           totalAmount: order.total_amount,
+          discountAmount: order.discount_amount,
           paymentDetails,
           kotPrinted: order.kot_printed,
           billPrinted: order.bill_printed,
@@ -236,6 +240,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const actualStaffId = staffId || (currentUser ? currentUser.id : '12345');
       const actualStaffName = staffName || (currentUser ? currentUser.name : 'Demo Staff');
       
+      // Insert the new order
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -256,9 +261,10 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         
       if (orderError) throw orderError;
       
+      // Create order items
       const orderItems = items.map(item => ({
         order_id: newOrderId,
-        item_id: item.id,
+        menu_item_id: item.id,
         quantity: item.quantity,
         price: item.price,
       }));
@@ -269,6 +275,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         
       if (itemsError) throw itemsError;
       
+      // Update customer information if available
       if (customer) {
         const { error: customerError } = await supabase
           .from('customers')
@@ -282,6 +289,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         if (customerError) throw customerError;
       }
       
+      // Create the complete order object to return
       const newOrder: Order = {
         id: newOrderId,
         items,
@@ -308,7 +316,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         title: 'Error',
         description: 'Failed to create order: ' + (error.message || 'Unknown error'),
         variant: 'destructive',
-        duration: 1000,
+        duration: 3000,
       });
       throw error;
     }
