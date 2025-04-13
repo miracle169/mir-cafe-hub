@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -99,11 +98,11 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
         if (record.staff) {
           // Check if staff is an object with a direct name property
           if (typeof record.staff === 'object' && 'name' in record.staff) {
-            staffName = record.staff.name || 'Unknown';
+            staffName = (record.staff.name as string) || 'Unknown';
           } 
           // If staff is anything else (e.g., an array), try to find the name some other way
           else if (Array.isArray(record.staff) && record.staff.length > 0) {
-            staffName = record.staff[0]?.name || 'Unknown';
+            staffName = (record.staff[0]?.name as string) || 'Unknown';
           }
         }
         
@@ -153,11 +152,11 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
         if (record.staff) {
           // Check if staff is an object with a direct name property
           if (typeof record.staff === 'object' && 'name' in record.staff) {
-            staffName = record.staff.name || 'Unknown';
+            staffName = (record.staff.name as string) || 'Unknown';
           } 
           // If staff is anything else (e.g., an array), try to find the name some other way
           else if (Array.isArray(record.staff) && record.staff.length > 0) {
-            staffName = record.staff[0]?.name || 'Unknown';
+            staffName = (record.staff[0]?.name as string) || 'Unknown';
           }
         }
         
