@@ -26,6 +26,7 @@ const Login = () => {
   const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const [resetError, setResetError] = useState('');
+  const [loginError, setLoginError] = useState('');
   
   // Signup state
   const [signupName, setSignupName] = useState('');
@@ -95,8 +96,11 @@ const Login = () => {
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setLoginError('');
     
     try {
+      console.log("Attempting email login with:", email);
+      
       // First try email login with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -104,6 +108,35 @@ const Login = () => {
       });
       
       if (error) {
+        console.error("Supabase auth error:", error);
+        
+        // If Supabase auth fails, try the demo accounts
+        if (email === 'owner@mircafe.com' && password === 'owner123') {
+          // Use the login function for owner demo
+          const result = await login(email, password);
+          if (result.success) {
+            toast({
+              title: "Demo Login Successful",
+              description: "Welcome to the owner demo!",
+              duration: 1000,
+            });
+            return;
+          }
+        } else if (email === 'staff@mircafe.com' && password === 'staff123') {
+          // Use the login function for staff demo
+          const result = await login(email, password);
+          if (result.success) {
+            toast({
+              title: "Demo Login Successful",
+              description: "Welcome to the staff demo!",
+              duration: 1000,
+            });
+            return;
+          }
+        }
+        
+        // If all login attempts fail, show error
+        setLoginError(error.message || "Invalid credentials");
         toast({
           title: "Login Failed",
           description: error.message || "Please check your credentials and try again",
@@ -118,6 +151,7 @@ const Login = () => {
       }
     } catch (error) {
       console.error('Login error:', error);
+      setLoginError("An unexpected error occurred. Please try again.");
       toast({
         title: "Error",
         description: "An unexpected error occurred",
@@ -227,6 +261,12 @@ const Login = () => {
           <TabsContent value="login">
             <form onSubmit={handleEmailLogin}>
               <CardContent className="space-y-4">
+                {loginError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{loginError}</AlertDescription>
+                  </Alert>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input 

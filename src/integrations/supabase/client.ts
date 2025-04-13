@@ -19,7 +19,14 @@ export const checkSupabaseConnection = async () => {
   try {
     // Simple test query to check if the connection works
     const { data, error } = await supabase.from('staff').select('id').limit(1);
-    return !error;
+    
+    if (error) {
+      console.error("Supabase connection test failed:", error);
+      return false;
+    }
+    
+    console.log("Supabase connection successful:", data);
+    return true;
   } catch (e) {
     console.error("Supabase connection test failed:", e);
     return false;
