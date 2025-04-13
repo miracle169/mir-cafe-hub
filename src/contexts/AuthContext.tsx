@@ -22,6 +22,33 @@ export interface StaffMember {
   password?: string; // Added for staff login
 }
 
+// Sample user interface (for development/testing only)
+interface SampleUser {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+}
+
+// Sample users for development/testing
+const sampleUsers: SampleUser[] = [
+  {
+    id: 'sample-owner-1',
+    name: 'Sample Owner',
+    email: 'owner@example.com',
+    password: 'password',
+    role: 'owner'
+  },
+  {
+    id: 'sample-staff-1',
+    name: 'Sample Staff',
+    email: 'staff@example.com',
+    password: 'password',
+    role: 'staff'
+  }
+];
+
 // Auth context type
 interface AuthContextType {
   isAuthenticated: boolean;
