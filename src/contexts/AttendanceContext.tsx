@@ -2,7 +2,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
+import { useLocalStorage } from '@/hooks/use-local-storage';
 
 // Attendance record interface
 export interface AttendanceRecord {
@@ -29,14 +30,14 @@ export interface CashRegisterRecord {
 export interface AttendanceContextType {
   attendance: AttendanceRecord[];
   cashRegisters: CashRegisterRecord[];
-  checkIn: () => Promise<void>;
-  checkOut: () => Promise<void>;
-  getAttendanceForToday: () => AttendanceRecord[];
+  checkIn: (staffId?: string) => Promise<void>;
+  checkOut: (staffId?: string) => Promise<void>;
+  getAttendanceForToday: (staffId?: string) => AttendanceRecord[];
   getAttendanceForDate: (date: string) => AttendanceRecord[];
   getPresentStaff: () => AttendanceRecord[];
-  registerOpeningCash: (amount: number) => Promise<void>;
-  registerClosingCash: (amount: number, reason?: string) => Promise<void>;
-  getTodayCashRegister: () => CashRegisterRecord | undefined;
+  registerOpeningCash: (staffId: string, staffName: string, amount: number, reason?: string) => Promise<void>;
+  registerClosingCash: (staffId: string, amount: number) => Promise<void>;
+  getTodayCashRegister: (staffId: string) => CashRegisterRecord | undefined;
   syncAttendance: () => Promise<void>;
   syncCashRegisters: () => Promise<void>;
 }
@@ -151,11 +152,18 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   };
   
   // Check in function
-  const checkIn = async () => {
-    if (!currentUser) {
+  const checkIn = async (staffId?: string) => {
+    const userId = staffId || (currentUser ? currentUser.id : null);
+    const userName = staffId 
+      ? (currentUser?.role === 'owner' 
+          ? currentUser?.staffMembers?.find(staff => staff.id === staffId)?.name || 'Unknown'
+          : currentUser?.name || 'Unknown')
+      : (currentUser?.name || 'Unknown');
+    
+    if (!userId) {
       toast({
         title: 'Error',
-        description: 'You must be logged in to check in',
+        description: 'Staff ID is required to check in',
         variant: 'destructive',
       });
       return;
@@ -169,7 +177,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       const { data, error } = await supabase
         .from('attendance')
         .insert({
-          staff_id: currentUser.id,
+          staff_id: userId,
           date: today,
           check_in_time: now.toISOString(),
         })
@@ -182,7 +190,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       const newRecord: AttendanceRecord = {
         id: data.id,
         staffId: data.staff_id,
-        staffName: currentUser.name,
+        staffName: userName,
         date: data.date,
         checkInTime: data.check_in_time,
       };
@@ -204,11 +212,13 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   };
   
   // Check out function
-  const checkOut = async () => {
-    if (!currentUser) {
+  const checkOut = async (staffId?: string) => {
+    const userId = staffId || (currentUser ? currentUser.id : null);
+    
+    if (!userId) {
       toast({
         title: 'Error',
-        description: 'You must be logged in to check out',
+        description: 'Staff ID is required to check out',
         variant: 'destructive',
       });
       return;
@@ -219,7 +229,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     
     // Find the last check-in without check-out
     const todayRecords = attendance.filter(
-      record => record.staffId === currentUser.id && 
+      record => record.staffId === userId && 
                 record.date === today && 
                 !record.checkOutTime
     );
@@ -268,12 +278,14 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   };
   
   // Get attendance records for today
-  const getAttendanceForToday = () => {
-    if (!currentUser) return [];
+  const getAttendanceForToday = (staffId?: string) => {
+    const userId = staffId || (currentUser ? currentUser.id : null);
+    
+    if (!userId) return [];
     
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     return attendance.filter(
-      record => record.staffId === currentUser.id && record.date === today
+      record => record.staffId === userId && record.date === today
     ).sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
   };
   
@@ -294,11 +306,11 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   };
   
   // Register opening cash
-  const registerOpeningCash = async (amount: number) => {
-    if (!currentUser) {
+  const registerOpeningCash = async (staffId: string, staffName: string, amount: number, reason?: string) => {
+    if (!staffId) {
       toast({
         title: 'Error',
-        description: 'You must be logged in to register cash',
+        description: 'Staff ID is required to register cash',
         variant: 'destructive',
       });
       return;
@@ -309,7 +321,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     
     // Check if there's already a register for today
     const todayRegister = cashRegisters.find(
-      register => register.date === today
+      register => register.staffId === staffId && register.date === today
     );
     
     if (todayRegister) {
@@ -326,9 +338,10 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       const { data, error } = await supabase
         .from('cash_register')
         .insert({
-          staff_id: currentUser.id,
+          staff_id: staffId,
           date: today,
           opening_amount: amount,
+          reason: reason || null
         })
         .select()
         .single();
@@ -339,9 +352,10 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       const newRegister: CashRegisterRecord = {
         id: data.id,
         staffId: data.staff_id,
-        staffName: currentUser.name,
+        staffName: staffName,
         date: data.date,
         openingAmount: data.opening_amount,
+        reason: data.reason
       };
       
       setCashRegisters(prev => [newRegister, ...prev]);
@@ -361,11 +375,11 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   };
   
   // Register closing cash
-  const registerClosingCash = async (amount: number, reason?: string) => {
-    if (!currentUser) {
+  const registerClosingCash = async (staffId: string, amount: number) => {
+    if (!staffId) {
       toast({
         title: 'Error',
-        description: 'You must be logged in to close the register',
+        description: 'Staff ID is required to close the register',
         variant: 'destructive',
       });
       return;
@@ -375,7 +389,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     
     // Find today's register
     const todayRegister = cashRegisters.find(
-      register => register.date === today
+      register => register.staffId === staffId && register.date === today
     );
     
     if (!todayRegister) {
@@ -401,8 +415,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       const { error } = await supabase
         .from('cash_register')
         .update({
-          closing_amount: amount,
-          reason: reason || null,
+          closing_amount: amount
         })
         .eq('id', todayRegister.id);
       
@@ -412,7 +425,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       setCashRegisters(prev => 
         prev.map(register => 
           register.id === todayRegister.id 
-            ? { ...register, closingAmount: amount, reason } 
+            ? { ...register, closingAmount: amount } 
             : register
         )
       );
@@ -432,9 +445,9 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   };
   
   // Get today's cash register
-  const getTodayCashRegister = () => {
+  const getTodayCashRegister = (staffId: string) => {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    return cashRegisters.find(register => register.date === today);
+    return cashRegisters.find(register => register.staffId === staffId && register.date === today);
   };
   
   // Context value

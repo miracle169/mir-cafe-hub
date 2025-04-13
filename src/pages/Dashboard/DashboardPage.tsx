@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,7 +13,7 @@ import PurchaseHistoryDisplay from '@/components/Dashboard/PurchaseHistoryDispla
 
 const DashboardPage = () => {
   const { isOwner } = useAuth();
-  const { attendanceRecords, getPresentStaff } = useAttendance();
+  const { attendance, getPresentStaff } = useAttendance();
   const { orders } = useOrder();
   const { items: inventoryItems, getLowStockItems } = useInventory();
   
@@ -47,9 +46,8 @@ const DashboardPage = () => {
     }).reverse();
     
     setSalesData(last7Days);
-  }, [orders, inventoryItems, attendanceRecords, getLowStockItems, getPresentStaff]);
+  }, [orders, inventoryItems, attendance, getLowStockItems, getPresentStaff]);
 
-  // Generate category sales data for pie chart
   const generateCategorySalesData = () => {
     const categoryMap = new Map();
     
@@ -191,7 +189,6 @@ const DashboardPage = () => {
                         </Pie>
                         <Tooltip 
                           formatter={(value: any) => {
-                            // Check if value is a number before calling toFixed
                             return [typeof value === 'number' ? `₹${value.toFixed(2)}` : `₹${value}`, 'Sales'];
                           }} 
                         />

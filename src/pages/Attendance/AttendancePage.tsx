@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -12,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
 const AttendancePage = () => {
-  const { attendanceRecords, checkIn, checkOut, getAttendanceForDate } = useAttendance();
+  const { attendance, checkIn, checkOut, getAttendanceForDate } = useAttendance();
   const { currentUser, staffMembers = [] } = useAuth(); // Provide a default empty array
   const { toast } = useToast();
   const [date, setDate] = useState<string>(
@@ -24,7 +23,7 @@ const AttendancePage = () => {
   useEffect(() => {
     const filteredEntries = getAttendanceForDate(date);
     setTodayEntries(filteredEntries);
-  }, [date, attendanceRecords, getAttendanceForDate]);
+  }, [date, attendance, getAttendanceForDate]);
 
   const handleCheckIn = (staffId: string) => {
     try {

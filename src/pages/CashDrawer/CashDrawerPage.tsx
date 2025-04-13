@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 const CashDrawerPage = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
-  const { cashRegisterEntries, registerOpeningCash, registerClosingCash, getTodayCashRegister } = useAttendance();
+  const { cashRegisters, registerOpeningCash, registerClosingCash, getTodayCashRegister } = useAttendance();
   const { orders } = useOrder();
   
   const [openingAmount, setOpeningAmount] = useState('');
@@ -44,7 +44,7 @@ const CashDrawerPage = () => {
         setReason(entry.reason);
       }
     }
-  }, [currentUser, getTodayCashRegister, cashRegisterEntries]);
+  }, [currentUser, getTodayCashRegister, cashRegisters]);
 
   // Calculate today's cash sales
   const calculateTodayCashSales = () => {
