@@ -2,14 +2,14 @@
 import { toast as sonnerToast } from "sonner";
 import type { ExternalToast } from "sonner";
 
-const TOAST_DURATION = 1000; // 1 second default
-
 type ToastProps = ExternalToast & {
   title?: string;
   description?: string;
   variant?: "default" | "destructive";
   duration?: number;
 };
+
+const TOAST_DURATION = 3000; // 3 seconds default
 
 const toast = ({
   title,

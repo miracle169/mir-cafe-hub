@@ -1,14 +1,7 @@
 
-import { Toast, ToastClose, ToastDescription, ToastProvider, ToastTitle, ToastViewport } from "@/components/ui/toast"
-import { Toaster as ToastPrimitive } from "sonner"
+import React from "react";
+import { Toaster as SonnerToaster } from "sonner";
 
 export function Toaster() {
-  return (
-    <>
-      <ToastPrimitive position="top-right" />
-      <ToastProvider>
-        <ToastViewport />
-      </ToastProvider>
-    </>
-  )
+  return <SonnerToaster position="top-right" />
 }

@@ -43,6 +43,7 @@ interface InventoryContextType {
   getItemById: (id: string) => InventoryItem | undefined;
   getLowStockItems: () => InventoryItem[];
   bulkAddItems: (items: Omit<InventoryItem, 'id' | 'lastUpdated'>[]) => void;
+  bulkDeleteItems: (ids: string[]) => void;
 }
 
 // Create the context
@@ -135,6 +136,11 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
     setItems((prevItems) => prevItems.filter((item) => item.id !== id));
   };
 
+  // Delete multiple inventory items in bulk
+  const bulkDeleteItems = (ids: string[]) => {
+    setItems((prevItems) => prevItems.filter((item) => !ids.includes(item.id)));
+  };
+
   // Decrease inventory (return false if not enough)
   const decreaseInventory = (itemId: string, amount: number) => {
     const item = items.find((i) => i.id === itemId);
@@ -216,6 +222,7 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
     getItemById,
     getLowStockItems,
     bulkAddItems,
+    bulkDeleteItems,
   };
 
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
