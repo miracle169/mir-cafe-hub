@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
@@ -9,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Pencil, Trash2, Plus, UserPlus, Key } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const StaffManagementPage = () => {
   const { staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, currentUser } = useAuth();
@@ -19,142 +22,150 @@ const StaffManagementPage = () => {
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffRole, setNewStaffRole] = useState<UserRole>('staff');
   const [newStaffPassword, setNewStaffPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [editingStaff, setEditingStaff] = useState<{ id: string; name: string; role: UserRole; password?: string } | null>(null);
-  const [passwordStaff, setPasswordStaff] = useState<{ id: string; name: string; password: string } | null>(null);
+  const [passwordStaff, setPasswordStaff] = useState<{ id: string; name: string; password: string; confirmPassword: string } | null>(null);
+  const [error, setError] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleAddStaff = () => {
+  const handleAddStaff = async () => {
+    setError('');
+    
     if (!newStaffName.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a staff name',
-        variant: 'destructive',
-        duration: 1000,
-      });
+      setError('Please enter a staff name');
       return;
     }
 
     if (!newStaffPassword.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a password for the staff',
-        variant: 'destructive',
-        duration: 1000,
-      });
+      setError('Please enter a password for the staff');
       return;
     }
-
-    if (staffMembers.some(staff => staff.name.toLowerCase() === newStaffName.toLowerCase())) {
-      toast({
-        title: 'Error',
-        description: 'A staff member with this name already exists',
-        variant: 'destructive',
-        duration: 1000,
-      });
-      return;
-    }
-
-    addStaffMember(newStaffName, newStaffRole, newStaffPassword);
-    setNewStaffName('');
-    setNewStaffRole('staff');
-    setNewStaffPassword('');
-    setIsAddDialogOpen(false);
     
-    toast({
-      title: 'Success',
-      description: `Added new staff member: ${newStaffName}`,
-      duration: 1000,
-    });
+    if (newStaffPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      await addStaffMember(newStaffName, newStaffRole, newStaffPassword);
+      
+      setNewStaffName('');
+      setNewStaffRole('staff');
+      setNewStaffPassword('');
+      setConfirmPassword('');
+      setIsAddDialogOpen(false);
+      
+      toast({
+        title: 'Success',
+        description: `Added new staff member: ${newStaffName}`,
+        duration: 1000,
+      });
+    } catch (error) {
+      setError(error.message || 'Failed to add staff member');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const openEditDialog = (staff: { id: string; name: string; role: UserRole }) => {
     setEditingStaff(staff);
     setIsEditDialogOpen(true);
+    setError('');
   };
 
   const openPasswordDialog = (staff: { id: string; name: string }) => {
     setPasswordStaff({
       id: staff.id,
       name: staff.name,
-      password: ''
+      password: '',
+      confirmPassword: '',
     });
     setIsPasswordDialogOpen(true);
+    setError('');
   };
 
-  const handleEditStaff = () => {
+  const handleEditStaff = async () => {
     if (!editingStaff) return;
+    setError('');
     
     if (!editingStaff.name.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a staff name',
-        variant: 'destructive',
-        duration: 1000,
-      });
+      setError('Please enter a staff name');
       return;
     }
 
-    if (staffMembers.some(
-      staff => staff.id !== editingStaff.id && 
-      staff.name.toLowerCase() === editingStaff.name.toLowerCase()
-    )) {
-      toast({
-        title: 'Error',
-        description: 'A staff member with this name already exists',
-        variant: 'destructive',
-        duration: 1000,
-      });
-      return;
-    }
-
-    updateStaffMember(editingStaff.id, editingStaff.name, editingStaff.role);
-    setIsEditDialogOpen(false);
-    
-    toast({
-      title: 'Success',
-      description: `Updated staff member: ${editingStaff.name}`,
-      duration: 1000,
-    });
-  };
-
-  const handleUpdatePassword = () => {
-    if (!passwordStaff) return;
-    
-    if (!passwordStaff.password.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a password',
-        variant: 'destructive',
-        duration: 1000,
-      });
-      return;
-    }
-
-    updateStaffMember(passwordStaff.id, passwordStaff.name, 
-      staffMembers.find(staff => staff.id === passwordStaff.id)?.role || 'staff',
-      passwordStaff.password);
-    
-    setIsPasswordDialogOpen(false);
-    
-    toast({
-      title: 'Success',
-      description: `Updated password for ${passwordStaff.name}`,
-      duration: 1000,
-    });
-  };
-
-  const handleDeleteStaff = (id: string, name: string) => {
-    const success = deleteStaffMember(id);
-    
-    if (success) {
+    try {
+      setIsProcessing(true);
+      await updateStaffMember(editingStaff.id, editingStaff.name, editingStaff.role);
+      setIsEditDialogOpen(false);
+      
       toast({
         title: 'Success',
-        description: `Deleted staff member: ${name}`,
+        description: `Updated staff member: ${editingStaff.name}`,
         duration: 1000,
       });
-    } else {
+    } catch (error) {
+      setError(error.message || 'Failed to update staff member');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!passwordStaff) return;
+    setError('');
+    
+    if (!passwordStaff.password.trim()) {
+      setError('Please enter a password');
+      return;
+    }
+    
+    if (passwordStaff.password !== passwordStaff.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      const staffRole = staffMembers.find(staff => staff.id === passwordStaff.id)?.role || 'staff';
+      await updateStaffMember(passwordStaff.id, passwordStaff.name, staffRole, passwordStaff.password);
+      
+      setIsPasswordDialogOpen(false);
+      
+      toast({
+        title: 'Success',
+        description: `Updated password for ${passwordStaff.name}`,
+        duration: 1000,
+      });
+    } catch (error) {
+      setError(error.message || 'Failed to update password');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDeleteStaff = async (id: string, name: string) => {
+    try {
+      const success = await deleteStaffMember(id);
+      
+      if (success) {
+        toast({
+          title: 'Success',
+          description: `Deleted staff member: ${name}`,
+          duration: 1000,
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Cannot delete this staff member',
+          variant: 'destructive',
+          duration: 1000,
+        });
+      }
+    } catch (error) {
       toast({
         title: 'Error',
-        description: 'Cannot delete this staff member',
+        description: error.message || 'Failed to delete staff member',
         variant: 'destructive',
         duration: 1000,
       });
@@ -180,6 +191,12 @@ const StaffManagementPage = () => {
                   Enter the details for the new staff member.
                 </DialogDescription>
               </DialogHeader>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
               <div className="grid gap-4 py-4">
                 <div className="space-y-2">
                   <label htmlFor="name" className="text-sm font-medium">Name</label>
@@ -201,6 +218,16 @@ const StaffManagementPage = () => {
                   />
                 </div>
                 <div className="space-y-2">
+                  <label htmlFor="confirm-password" className="text-sm font-medium">Confirm Password</label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm staff password"
+                  />
+                </div>
+                <div className="space-y-2">
                   <label htmlFor="role" className="text-sm font-medium">Role</label>
                   <Select
                     value={newStaffRole}
@@ -217,11 +244,11 @@ const StaffManagementPage = () => {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isProcessing}>
                   Cancel
                 </Button>
-                <Button className="bg-mir-red hover:bg-mir-red/90" onClick={handleAddStaff}>
-                  Add Staff
+                <Button className="bg-mir-red hover:bg-mir-red/90" onClick={handleAddStaff} disabled={isProcessing}>
+                  {isProcessing ? 'Adding...' : 'Add Staff'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -294,6 +321,12 @@ const StaffManagementPage = () => {
               Update the staff member's details.
             </DialogDescription>
           </DialogHeader>
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
           {editingStaff && (
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
@@ -323,11 +356,11 @@ const StaffManagementPage = () => {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isProcessing}>
               Cancel
             </Button>
-            <Button className="bg-mir-red hover:bg-mir-red/90" onClick={handleEditStaff}>
-              Save Changes
+            <Button className="bg-mir-red hover:bg-mir-red/90" onClick={handleEditStaff} disabled={isProcessing}>
+              {isProcessing ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -342,6 +375,12 @@ const StaffManagementPage = () => {
               Update password for {passwordStaff?.name}
             </DialogDescription>
           </DialogHeader>
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
           {passwordStaff && (
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
@@ -354,14 +393,24 @@ const StaffManagementPage = () => {
                   placeholder="Enter new password"
                 />
               </div>
+              <div className="space-y-2">
+                <label htmlFor="confirm-new-password" className="text-sm font-medium">Confirm New Password</label>
+                <Input
+                  id="confirm-new-password"
+                  type="password"
+                  value={passwordStaff.confirmPassword}
+                  onChange={(e) => setPasswordStaff({...passwordStaff, confirmPassword: e.target.value})}
+                  placeholder="Confirm new password"
+                />
+              </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)} disabled={isProcessing}>
               Cancel
             </Button>
-            <Button className="bg-mir-red hover:bg-mir-red/90" onClick={handleUpdatePassword}>
-              Update Password
+            <Button className="bg-mir-red hover:bg-mir-red/90" onClick={handleUpdatePassword} disabled={isProcessing}>
+              {isProcessing ? 'Updating...' : 'Update Password'}
             </Button>
           </DialogFooter>
         </DialogContent>
