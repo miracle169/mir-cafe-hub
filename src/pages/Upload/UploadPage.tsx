@@ -6,14 +6,17 @@ import { useToast } from '@/components/ui/use-toast';
 import { useInventory } from '@/contexts/InventoryContext';
 import { useMenu } from '@/contexts/MenuContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Trash2, RefreshCw } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel, AlertDialogFooter, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const UploadPage = () => {
   const { toast } = useToast();
   const { bulkAddItems: bulkAddInventoryItems } = useInventory();
-  const { bulkAddItems: bulkAddMenuItems, bulkAddCategories } = useMenu();
+  const { bulkAddItems: bulkAddMenuItems, bulkAddCategories, clearAllItems } = useMenu();
   const { isOwner } = useAuth();
   
   const [activeTab, setActiveTab] = useState<string>('menu');
@@ -23,6 +26,7 @@ const UploadPage = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
 
   // Check if user is owner
   if (!isOwner) {
@@ -54,24 +58,43 @@ const UploadPage = () => {
 
   // Parse CSV file
   const parseCSV = (text: string) => {
-    const lines = text.split('\n');
-    const headers = lines[0].split(',').map(header => header.trim());
-    
-    const data = [];
-    for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue;
+    try {
+      const lines = text.split('\n');
       
-      const values = lines[i].split(',').map(value => value.trim());
-      const row: any = {};
+      if (lines.length <= 1) {
+        throw new Error("CSV file appears to be empty or has only headers");
+      }
       
-      headers.forEach((header, index) => {
-        row[header] = values[index];
-      });
+      const headers = lines[0].split(',').map(header => header.trim());
       
-      data.push(row);
+      const data = [];
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        
+        const values = lines[i].split(',').map(value => value.trim());
+        if (values.length !== headers.length) {
+          console.warn(`Line ${i+1} has ${values.length} values but should have ${headers.length}`);
+          continue;
+        }
+        
+        const row: any = {};
+        
+        headers.forEach((header, index) => {
+          row[header] = values[index];
+        });
+        
+        data.push(row);
+      }
+      
+      if (data.length === 0) {
+        throw new Error("No valid data rows found in CSV file");
+      }
+      
+      return { headers, data };
+    } catch (error) {
+      console.error("CSV parsing error:", error);
+      throw error;
     }
-    
-    return { headers, data };
   };
 
   // Preview CSV file
@@ -187,7 +210,12 @@ const UploadPage = () => {
     }));
     
     // Add menu items
-    bulkAddMenuItems(menuItems);
+    if (menuItems.length > 0) {
+      bulkAddMenuItems(menuItems);
+    } else {
+      setUploadError('No valid menu items found in CSV file');
+      setUploading(false);
+    }
   };
 
   // Process inventory data
@@ -212,7 +240,12 @@ const UploadPage = () => {
     }));
     
     // Add inventory items
-    bulkAddInventoryItems(inventoryItems);
+    if (inventoryItems.length > 0) {
+      bulkAddInventoryItems(inventoryItems);
+    } else {
+      setUploadError('No valid inventory items found in CSV file');
+      setUploading(false);
+    }
   };
 
   // Process recipe data
@@ -236,6 +269,40 @@ const UploadPage = () => {
     setUploadProgress(0);
   };
 
+  // Handle clear all items
+  const handleClearAllItems = () => {
+    if (activeTab === 'menu') {
+      clearAllItems();
+      toast({
+        title: "Menu Items Cleared",
+        description: "All menu items have been removed",
+      });
+    } else if (activeTab === 'inventory') {
+      // Similarly implement for inventory if needed
+      toast({
+        title: "Not Implemented",
+        description: "Clearing inventory items is not implemented yet",
+      });
+    }
+    setIsClearDialogOpen(false);
+  };
+
+  // Generate sample CSV download
+  const getSampleCSVLink = () => {
+    let csvContent = '';
+    
+    if (activeTab === 'menu') {
+      csvContent = 'name,price,category,description\nLatte,120,Coffee,Espresso with steamed milk\nCheese Sandwich,150,Sandwiches,Grilled cheese sandwich';
+    } else if (activeTab === 'inventory') {
+      csvContent = 'name,quantity,unit,category,lowStockThreshold\nCoffee Beans,5,kg,Beverages,1\nBread,20,pack,Bakery,5';
+    } else if (activeTab === 'recipes') {
+      csvContent = 'menuItem,ingredient,quantity,unit\nLatte,Coffee Beans,0.02,kg\nLatte,Milk,0.2,liter';
+    }
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    return URL.createObjectURL(blob);
+  };
+
   return (
     <Layout title="Upload Data" showBackButton>
       <div className="mir-container">
@@ -246,7 +313,43 @@ const UploadPage = () => {
             <TabsTrigger value="recipes">Recipes</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="menu" className="space-y-4 mt-4">
+          <div className="flex justify-between items-center mt-4 mb-2">
+            <h2 className="text-lg font-semibold">{activeTab === 'menu' ? 'Menu Items' : activeTab === 'inventory' ? 'Inventory Items' : 'Recipes'}</h2>
+            <div className="flex space-x-2">
+              <a 
+                href={getSampleCSVLink()} 
+                download={`sample_${activeTab}.csv`}
+                className="text-sm text-blue-600 underline hover:text-blue-800"
+              >
+                Download Sample CSV
+              </a>
+              
+              <AlertDialog open={isClearDialogOpen} onOpenChange={setIsClearDialogOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-red-500 border-red-200">
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Clear All
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete all {activeTab === 'menu' ? 'menu items' : 'inventory items'} and cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleClearAllItems} className="bg-red-500 hover:bg-red-600 text-white">
+                      Yes, clear everything
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+          
+          <TabsContent value="menu" className="space-y-4">
             <Card>
               <CardHeader className="p-3 pb-0">
                 <CardTitle className="text-lg">Upload Menu Items</CardTitle>
@@ -310,7 +413,7 @@ const UploadPage = () => {
                           >
                             {uploading ? (
                               <>
-                                <Upload className="h-4 w-4 mr-2 animate-pulse" />
+                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                                 Uploading...
                               </>
                             ) : (
@@ -368,7 +471,7 @@ const UploadPage = () => {
             </Card>
           </TabsContent>
           
-          <TabsContent value="inventory" className="space-y-4 mt-4">
+          <TabsContent value="inventory" className="space-y-4">
             <Card>
               <CardHeader className="p-3 pb-0">
                 <CardTitle className="text-lg">Upload Inventory Items</CardTitle>
@@ -379,7 +482,6 @@ const UploadPage = () => {
                   Optional: lowStockThreshold.
                 </p>
                 
-                {/* Similar structure to menu upload */}
                 {uploadSuccess ? (
                   <div className="text-center py-4">
                     <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
@@ -410,15 +512,51 @@ const UploadPage = () => {
                       </label>
                     </div>
                     
-                    {/* Rest of the UI similar to menu upload */}
-                    {/* ... */}
+                    {uploadError && (
+                      <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm">
+                        {uploadError}
+                      </div>
+                    )}
+                    
+                    {csvFile && (
+                      <div className="flex space-x-3">
+                        <Button 
+                          variant="outline" 
+                          onClick={previewCSV}
+                          className="flex-1"
+                        >
+                          Preview
+                        </Button>
+                        <Button 
+                          onClick={handleUpload}
+                          className="flex-1 bg-mir-red text-white"
+                          disabled={uploading}
+                        >
+                          {uploading ? (
+                            <>
+                              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Upload
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {uploading && (
+                      <Progress value={uploadProgress} className="h-2" />
+                    )}
                   </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
           
-          <TabsContent value="recipes" className="space-y-4 mt-4">
+          <TabsContent value="recipes" className="space-y-4">
             <Card>
               <CardHeader className="p-3 pb-0">
                 <CardTitle className="text-lg">Upload Recipes</CardTitle>
@@ -428,7 +566,6 @@ const UploadPage = () => {
                   Upload a CSV file with recipes. Required columns: menuItem, ingredient, quantity, unit.
                 </p>
                 
-                {/* Similar structure to menu upload */}
                 {uploadSuccess ? (
                   <div className="text-center py-4">
                     <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
@@ -459,8 +596,44 @@ const UploadPage = () => {
                       </label>
                     </div>
                     
-                    {/* Rest of the UI similar to menu upload */}
-                    {/* ... */}
+                    {uploadError && (
+                      <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm">
+                        {uploadError}
+                      </div>
+                    )}
+                    
+                    {csvFile && (
+                      <div className="flex space-x-3">
+                        <Button 
+                          variant="outline" 
+                          onClick={previewCSV}
+                          className="flex-1"
+                        >
+                          Preview
+                        </Button>
+                        <Button 
+                          onClick={handleUpload}
+                          className="flex-1 bg-mir-red text-white"
+                          disabled={uploading}
+                        >
+                          {uploading ? (
+                            <>
+                              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Upload
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {uploading && (
+                      <Progress value={uploadProgress} className="h-2" />
+                    )}
                   </div>
                 )}
               </CardContent>

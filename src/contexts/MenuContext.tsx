@@ -44,9 +44,11 @@ interface MenuContextType {
   getItemsByCategory: (categoryId: string) => MenuItem[];
   bulkAddItems: (items: Omit<MenuItem, 'id'>[]) => void;
   bulkAddCategories: (categories: Omit<MenuCategory, 'id'>[]) => void;
+  bulkDeleteItems: (ids: string[]) => void;
   isLoading: boolean;
   removeCategory: (id: string) => void;
   removeMenuItem: (id: string) => void;
+  clearAllItems: () => void;
 }
 
 // Create the context
@@ -170,6 +172,16 @@ export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setItems((prevItems) => prevItems.filter((item) => item.id !== id));
   };
 
+  // Delete multiple menu items in bulk
+  const bulkDeleteItems = (ids: string[]) => {
+    setItems((prevItems) => prevItems.filter((item) => !ids.includes(item.id)));
+  };
+
+  // Clear all menu items
+  const clearAllItems = () => {
+    setItems([]);
+  };
+
   // Delete a menu item (alias for backward compatibility)
   const deleteMenuItem = deleteItem;
   
@@ -217,6 +229,8 @@ export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Bulk add items (for CSV import)
   const bulkAddItems = (newItems: Omit<MenuItem, 'id'>[]) => {
+    if (!newItems || newItems.length === 0) return;
+    
     const itemsToAdd = newItems.map((item) => ({
       id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       ...item,
@@ -227,6 +241,8 @@ export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Bulk add categories (for CSV import)
   const bulkAddCategories = (newCategories: Omit<MenuCategory, 'id'>[]) => {
+    if (!newCategories || newCategories.length === 0) return;
+    
     const categoriesToAdd = newCategories.map((category) => ({
       id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       ...category,
@@ -253,9 +269,11 @@ export const MenuProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     getItemsByCategory,
     bulkAddItems,
     bulkAddCategories,
+    bulkDeleteItems,
     isLoading,
     removeCategory,
     removeMenuItem,
+    clearAllItems,
   };
 
   return <MenuContext.Provider value={value}>{children}</MenuContext.Provider>;

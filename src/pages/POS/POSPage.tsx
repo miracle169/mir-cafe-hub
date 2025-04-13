@@ -22,7 +22,7 @@ const POSPage = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showCategoryItems, setShowCategoryItems] = useState(false);
 
-  // Ensure proper menu items format for debugging
+  // Log menu items and categories for debugging
   useEffect(() => {
     console.log("Menu items loaded:", menuItems);
     console.log("Categories loaded:", categories);
@@ -80,7 +80,16 @@ const POSPage = () => {
   // Get category name
   const getCategoryName = (categoryId) => {
     const category = categories?.find(c => c.id === categoryId);
-    return category ? category.name : 'All Items';
+    return category ? category.name : 'Uncategorized';
+  };
+
+  // Count items in each category
+  const getItemCountByCategory = (categoryId) => {
+    return menuItems.filter(item => 
+      categoryId === null 
+        ? true 
+        : item.category === categoryId
+    ).length;
   };
 
   return (
@@ -156,20 +165,23 @@ const POSPage = () => {
                   </CardContent>
                 </Card>
                 
-                {categories && categories.map((category) => (
-                  <Card 
-                    key={category.id} 
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => handleCategorySelect(category.id)}
-                  >
-                    <CardContent className="p-4 text-center">
-                      <h3 className="font-medium">{category.name}</h3>
-                      <p className="text-sm text-gray-500">
-                        {menuItems ? menuItems.filter(item => item.category === category.id).length : 0} items
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
+                {categories && categories.map((category) => {
+                  const itemCount = getItemCountByCategory(category.id);
+                  return (
+                    <Card 
+                      key={category.id} 
+                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => handleCategorySelect(category.id)}
+                    >
+                      <CardContent className="p-4 text-center">
+                        <h3 className="font-medium">{category.name}</h3>
+                        <p className="text-sm text-gray-500">
+                          {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             ) : (
               // Category Items View
@@ -206,6 +218,9 @@ const POSPage = () => {
                               {getCategoryName(item.category) || 'Uncategorized'}
                             </Badge>
                           </div>
+                          {item.description && (
+                            <p className="text-xs text-gray-500 mb-2 line-clamp-2">{item.description}</p>
+                          )}
                           <Button 
                             onClick={() => handleAddItem(item)} 
                             className="w-full mt-2"
@@ -220,6 +235,9 @@ const POSPage = () => {
                 ) : (
                   <div className="text-center py-8">
                     <p>No menu items found.</p>
+                    {searchQuery && (
+                      <p className="text-sm text-gray-500 mt-1">Try a different search term</p>
+                    )}
                   </div>
                 )}
               </div>
