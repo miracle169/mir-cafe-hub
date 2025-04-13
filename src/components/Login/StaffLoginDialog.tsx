@@ -127,7 +127,7 @@ const StaffLoginDialog = ({ open, onOpenChange }: StaffLoginDialogProps) => {
           )}
           
           {connectionStatus === false && (
-            <Alert variant="warning">
+            <Alert variant="default">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 Database connection issues detected. Some features may not work properly.
