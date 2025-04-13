@@ -91,16 +91,31 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       
       if (error) throw error;
       
-      const formattedAttendance = data.map((record) => ({
-        id: record.id,
-        staffId: record.staff_id,
-        // Fix for error: Property 'name' does not exist on type '{ name: any; }[]'
-        // Properly access the nested staff name property
-        staffName: record.staff ? record.staff.name || 'Unknown' : 'Unknown',
-        date: record.date,
-        checkInTime: record.check_in_time,
-        checkOutTime: record.check_out_time || undefined,
-      }));
+      const formattedAttendance = data.map((record) => {
+        // Fix: Properly handle staff name property based on the actual response structure
+        // Since TypeScript is complaining about accessing name on an array, we need to check
+        // if the staff property is an object with a name property or handle it differently
+        let staffName = 'Unknown';
+        if (record.staff) {
+          // Check if staff is an object with a direct name property
+          if (typeof record.staff === 'object' && 'name' in record.staff) {
+            staffName = record.staff.name || 'Unknown';
+          } 
+          // If staff is anything else (e.g., an array), try to find the name some other way
+          else if (Array.isArray(record.staff) && record.staff.length > 0) {
+            staffName = record.staff[0]?.name || 'Unknown';
+          }
+        }
+        
+        return {
+          id: record.id,
+          staffId: record.staff_id,
+          staffName: staffName,
+          date: record.date,
+          checkInTime: record.check_in_time,
+          checkOutTime: record.check_out_time || undefined,
+        };
+      });
       
       setAttendance(formattedAttendance);
     } catch (error) {
@@ -132,17 +147,30 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       
       if (error) throw error;
       
-      const formattedCashRegisters = data.map((record) => ({
-        id: record.id,
-        staffId: record.staff_id,
-        // Fix for error: Property 'name' does not exist on type '{ name: any; }[]'
-        // Properly access the nested staff name property
-        staffName: record.staff ? record.staff.name || 'Unknown' : 'Unknown',
-        date: record.date,
-        openingAmount: record.opening_amount,
-        closingAmount: record.closing_amount,
-        reason: record.reason,
-      }));
+      const formattedCashRegisters = data.map((record) => {
+        // Fix: Apply the same solution for accessing staff name in cash register records
+        let staffName = 'Unknown';
+        if (record.staff) {
+          // Check if staff is an object with a direct name property
+          if (typeof record.staff === 'object' && 'name' in record.staff) {
+            staffName = record.staff.name || 'Unknown';
+          } 
+          // If staff is anything else (e.g., an array), try to find the name some other way
+          else if (Array.isArray(record.staff) && record.staff.length > 0) {
+            staffName = record.staff[0]?.name || 'Unknown';
+          }
+        }
+        
+        return {
+          id: record.id,
+          staffId: record.staff_id,
+          staffName: staffName,
+          date: record.date,
+          openingAmount: record.opening_amount,
+          closingAmount: record.closing_amount,
+          reason: record.reason,
+        };
+      });
       
       setCashRegisters(formattedCashRegisters);
     } catch (error) {
