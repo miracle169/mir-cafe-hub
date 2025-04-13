@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -184,7 +185,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) {
         console.error('Error fetching user profile:', error);
-        // For development/demo, use a mock user
+        // Get user metadata from the Supabase user
+        try {
+          const { data: userData } = await supabase.auth.getUser();
+          if (userData?.user?.user_metadata) {
+            const { name, role } = userData.user.user_metadata;
+            setCurrentUser({
+              id: userData.user.id,
+              name: name || 'Unknown User',
+              role: role || 'owner',
+            });
+            return;
+          }
+        } catch (metaError) {
+          console.error('Error getting user metadata:', metaError);
+        }
+        
+        // Fallback to sample users for development/demo
         const mockUser = sampleUsers.find(user => user.email.toLowerCase() === userId.toLowerCase());
         if (mockUser) {
           setCurrentUser({
@@ -530,6 +547,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }).then(({ error }) => {
       if (error) {
         console.error('Error adding staff member:', error);
+      } else {
+        // Refresh staff members list
+        fetchStaffMembers();
       }
     });
   };
@@ -559,6 +579,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .then(({ error }) => {
         if (error) {
           console.error('Error updating staff member:', error);
+        } else {
+          // Refresh staff members list
+          fetchStaffMembers();
         }
       });
   };

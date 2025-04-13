@@ -35,6 +35,7 @@ import SettingsPage from "./pages/Settings/SettingsPage";
 import ReceiptsPage from "./pages/Receipts/ReceiptsPage";
 import CustomersPage from "./pages/Customers/CustomersPage";
 import ProductsPage from "./pages/Products/ProductsPage";
+import ResetPasswordPage from "./pages/ResetPassword/ResetPasswordPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,6 +80,7 @@ const App = () => (
                         <Route path="/upload" element={<UploadPage />} />
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/staff-management" element={<StaffManagementPage />} />
+                        <Route path="/reset-password" element={<ResetPasswordPage />} />
                         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                         <Route path="*" element={<NotFound />} />
                       </Routes>

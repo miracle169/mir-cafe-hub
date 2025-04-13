@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { LogIn } from 'lucide-react';
+import { LogIn, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface StaffLoginDialogProps {
   open: boolean;
@@ -19,43 +20,38 @@ const StaffLoginDialog = ({ open, onOpenChange }: StaffLoginDialogProps) => {
   const { toast } = useToast();
   const [selectedStaffId, setSelectedStaffId] = useState('');
   const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
 
   const handleLogin = async () => {
+    setLoginError('');
+    
     if (!selectedStaffId) {
-      toast({
-        title: "Error",
-        description: "Please select a staff member",
-        variant: "destructive",
-        duration: 1000,
-      });
+      setLoginError("Please select a staff member");
       return;
     }
 
     if (!password) {
-      toast({
-        title: "Error",
-        description: "Please enter your password",
-        variant: "destructive",
-        duration: 1000,
-      });
+      setLoginError("Please enter your password");
       return;
     }
 
     const selectedStaff = staffMembers.find(staff => staff.id === selectedStaffId);
     
     if (!selectedStaff) {
-      toast({
-        title: "Error",
-        description: "Invalid staff selection",
-        variant: "destructive",
-        duration: 1000,
-      });
+      setLoginError("Invalid staff selection");
       return;
     }
 
     const result = await staffLogin(selectedStaff.name, password);
     if (result.success) {
+      toast({
+        title: "Login Successful",
+        description: `Welcome back, ${selectedStaff.name}!`,
+        duration: 2000,
+      });
       onOpenChange(false);
+    } else {
+      setLoginError(result.error || "Invalid credentials");
     }
   };
 
@@ -66,6 +62,13 @@ const StaffLoginDialog = ({ open, onOpenChange }: StaffLoginDialogProps) => {
           <DialogTitle>Staff Login</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          {loginError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{loginError}</AlertDescription>
+            </Alert>
+          )}
+          
           <div className="space-y-2">
             <Label htmlFor="staff-select">Select Your Name</Label>
             <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
@@ -90,6 +93,11 @@ const StaffLoginDialog = ({ open, onOpenChange }: StaffLoginDialogProps) => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleLogin();
+                }
+              }}
             />
           </div>
           

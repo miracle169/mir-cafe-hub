@@ -9,6 +9,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import StaffLoginDialog from './Login/StaffLoginDialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const Login = () => {
   // Login state
@@ -16,6 +23,9 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isStaffLoginOpen, setIsStaffLoginOpen] = useState(false);
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [resetError, setResetError] = useState('');
   
   // Signup state
   const [signupName, setSignupName] = useState('');
@@ -23,9 +33,22 @@ const Login = () => {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   const [isSigningUp, setIsSigningUp] = useState(false);
+  const [signupError, setSignupError] = useState('');
   
   const { login, addStaffMember } = useAuth();
   const { toast } = useToast();
+
+  // Reset password form schema
+  const resetPasswordSchema = z.object({
+    email: z.string().email({ message: "Please enter a valid email address" }),
+  });
+
+  const resetPasswordForm = useForm<z.infer<typeof resetPasswordSchema>>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+      email: '',
+    },
+  });
 
   // Check for auth in URL (for when redirected back after email confirmation)
   useEffect(() => {
@@ -40,7 +63,33 @@ const Login = () => {
       }
     };
 
+    // Check for password reset confirmation
+    const handlePasswordReset = async () => {
+      const hash = window.location.hash;
+      if (hash && hash.includes('#access_token=')) {
+        try {
+          // Extract the access token from the URL
+          const accessToken = hash.split('#access_token=')[1].split('&')[0];
+          
+          // If we have a token, show a message to the user
+          if (accessToken) {
+            toast({
+              title: "Password Reset Link Detected",
+              description: "Please set your new password",
+              duration: 3000,
+            });
+            
+            // You can redirect to a password update form or show a modal here
+            // For now, we'll just notify the user
+          }
+        } catch (error) {
+          console.error('Error processing reset link:', error);
+        }
+      }
+    };
+
     checkSession();
+    handlePasswordReset();
   }, [toast]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -82,30 +131,23 @@ const Login = () => {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSigningUp(true);
+    setSignupError('');
     
     // Validation
     if (!signupName || !signupEmail || !signupPassword) {
-      toast({
-        title: "Signup Failed",
-        description: "Please fill in all fields",
-        variant: "destructive",
-      });
+      setSignupError("Please fill in all fields");
       setIsSigningUp(false);
       return;
     }
     
     if (signupPassword !== signupConfirmPassword) {
-      toast({
-        title: "Signup Failed",
-        description: "Passwords do not match",
-        variant: "destructive",
-      });
+      setSignupError("Passwords do not match");
       setIsSigningUp(false);
       return;
     }
     
     try {
-      // Create a Supabase auth account with autoconfirm
+      // Create a Supabase auth account
       const { data, error } = await supabase.auth.signUp({
         email: signupEmail,
         password: signupPassword,
@@ -127,8 +169,8 @@ const Login = () => {
       
       toast({
         title: "Account Created",
-        description: "Your account has been created successfully. You can now log in.",
-        duration: 3000,
+        description: "Your account has been created successfully. Please check your email for verification.",
+        duration: 5000,
       });
       
       // Reset signup form and switch to login tab
@@ -138,13 +180,33 @@ const Login = () => {
       setSignupConfirmPassword('');
     } catch (error) {
       console.error('Signup error:', error);
-      toast({
-        title: "Signup Failed",
-        description: "An error occurred while creating your account",
-        variant: "destructive",
-      });
+      setSignupError(error.message || "An error occurred while creating your account");
     } finally {
       setIsSigningUp(false);
+    }
+  };
+
+  const handleResetPassword = async (values: z.infer<typeof resetPasswordSchema>) => {
+    setResetError('');
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      
+      if (error) {
+        setResetError(error.message);
+      } else {
+        setResetEmailSent(true);
+        toast({
+          title: "Password Reset Email Sent",
+          description: "Please check your email for the password reset link",
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      console.error('Password reset error:', error);
+      setResetError("An unexpected error occurred");
     }
   };
 
@@ -187,6 +249,16 @@ const Login = () => {
                     required
                   />
                 </div>
+                <div className="text-right">
+                  <Button 
+                    variant="link" 
+                    type="button" 
+                    className="px-0 text-sm text-mir-red"
+                    onClick={() => setResetPasswordOpen(true)}
+                  >
+                    Forgot password?
+                  </Button>
+                </div>
                 <div className="text-sm text-gray-500">
                   <p>Demo Accounts:</p>
                   <p>Owner: owner@mircafe.com / owner123</p>
@@ -212,6 +284,12 @@ const Login = () => {
           <TabsContent value="signup">
             <form onSubmit={handleSignup}>
               <CardContent className="space-y-4">
+                {signupError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{signupError}</AlertDescription>
+                  </Alert>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">Full Name</Label>
                   <Input 
@@ -272,6 +350,65 @@ const Login = () => {
         open={isStaffLoginOpen} 
         onOpenChange={setIsStaffLoginOpen} 
       />
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetPasswordOpen} onOpenChange={setResetPasswordOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Enter your email address and we'll send you a link to reset your password.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {resetEmailSent ? (
+            <div className="space-y-4 py-3">
+              <Alert>
+                <AlertDescription>
+                  Password reset link has been sent to your email address. Please check your inbox.
+                </AlertDescription>
+              </Alert>
+              <Button 
+                className="w-full" 
+                onClick={() => {
+                  setResetPasswordOpen(false);
+                  setResetEmailSent(false);
+                  resetPasswordForm.reset();
+                }}
+              >
+                Return to Login
+              </Button>
+            </div>
+          ) : (
+            <Form {...resetPasswordForm}>
+              <form onSubmit={resetPasswordForm.handleSubmit(handleResetPassword)} className="space-y-4">
+                {resetError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{resetError}</AlertDescription>
+                  </Alert>
+                )}
+                <FormField
+                  control={resetPasswordForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email address</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter your email" type="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button type="submit">Send Reset Link</Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
